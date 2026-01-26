@@ -12,12 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
+           $table->id();
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
+            $table->string('password')->nullable(); // Será preenchido quando o usuário criar a senha
+            $table->enum('role', ['admin', 'user'])->default('user'); // Vamos manter apenas admin e user por enquanto
+            $table->boolean('active')->default(false);
+            $table->string('activation_token')->nullable();
             $table->timestamps();
         });
 

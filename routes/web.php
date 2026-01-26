@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\CompanyController;
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -40,6 +42,34 @@ Route::middleware(['auth'])->prefix('suppliers')->group(function () {
     Route::get('/search', [SupplierController::class, 'search'])->name('suppliers.search');
 });
 
+// Projects Routes
+Route::middleware(['auth'])->prefix('projects')->group(function () {
+    Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
+    Route::get('/data', [ProjectController::class, 'data'])->name('projects.data');
+    Route::get('/data/trashed', [ProjectController::class, 'dataTrashed'])->name('projects.data.trashed');
+    Route::post('/', [ProjectController::class, 'store'])->name('projects.store');
+    Route::get('/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
+    Route::put('/{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+    Route::post('/{id}/restore', [ProjectController::class, 'restore'])->name('projects.restore');
+    Route::delete('/{id}/force', [ProjectController::class, 'forceDelete'])->name('projects.force');
+    Route::get('/search', [ProjectController::class, 'search'])->name('projects.search');
+});
+
+// Companies Routes
+Route::middleware(['auth'])->prefix('companies')->group(function () {
+    Route::get('/', [CompanyController::class, 'index'])->name('companies.index');
+    Route::get('/data', [CompanyController::class, 'data'])->name('companies.data');
+    Route::get('/data/trashed', [CompanyController::class, 'dataTrashed'])->name('companies.data.trashed');
+    Route::post('/', [CompanyController::class, 'store'])->name('companies.store');
+    Route::get('/{company}/edit', [CompanyController::class, 'edit'])->name('companies.edit');
+    Route::put('/{company}', [CompanyController::class, 'update'])->name('companies.update');
+    Route::delete('/{company}', [CompanyController::class, 'destroy'])->name('companies.destroy');
+    Route::post('/{id}/restore', [CompanyController::class, 'restore'])->name('companies.restore');
+    Route::delete('/{id}/force', [CompanyController::class, 'forceDelete'])->name('companies.force');
+    Route::get('/search', [CompanyController::class, 'search'])->name('companies.search');
+    Route::get('/provinces', [CompanyController::class, 'provinces'])->name('companies.provinces');
+});
 // Auth::routes();
 use App\Http\Controllers\Auth\ActivationController;
 

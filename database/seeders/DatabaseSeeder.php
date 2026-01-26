@@ -35,5 +35,18 @@ class DatabaseSeeder extends Seeder
             'active' => false,
             'activation_token' => Str::random(60),
         ]);
+
+
+        $provinces = [
+        'Maputo Cidade', 'Maputo Província', 'Gaza', 'Inhambane', 'Sofala',
+        'Manica', 'Tete', 'Zambézia', 'Nampula', 'Cabo Delgado', 'Niassa'
+    ];
+    
+    foreach ($provinces as $province) {
+        Company::create([
+            'name' => 'Empresa Exemplo ' . $province,
+            'province' => $province
+        ]);
+    }
     }
 }

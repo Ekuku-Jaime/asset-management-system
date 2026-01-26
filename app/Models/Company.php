@@ -12,4 +12,10 @@ class Company extends Model
      use SoftDeletes;
 
     protected $fillable = ['name','province'];
+    protected $dates = ['deleted_at'];
+
+    public function employees()
+    {
+        return $this->hasMany(Employee::class);
+    }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\EmployeeController;
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -69,6 +70,21 @@ Route::middleware(['auth'])->prefix('companies')->group(function () {
     Route::delete('/{id}/force', [CompanyController::class, 'forceDelete'])->name('companies.force');
     Route::get('/search', [CompanyController::class, 'search'])->name('companies.search');
     Route::get('/provinces', [CompanyController::class, 'provinces'])->name('companies.provinces');
+});
+
+// Employees Routes
+Route::middleware(['auth'])->prefix('employees')->group(function () {
+    Route::get('/', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::get('/data', [EmployeeController::class, 'data'])->name('employees.data');
+    Route::get('/data/trashed', [EmployeeController::class, 'dataTrashed'])->name('employees.data.trashed');
+    Route::post('/', [EmployeeController::class, 'store'])->name('employees.store');
+    Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
+    Route::put('/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+    Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+    Route::post('/{id}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
+    Route::delete('/{id}/force', [EmployeeController::class, 'forceDelete'])->name('employees.force');
+    Route::get('/search', [EmployeeController::class, 'search'])->name('employees.search');
+    Route::get('/by-company/{companyId}', [EmployeeController::class, 'byCompany'])->name('employees.by-company');
 });
 // Auth::routes();
 use App\Http\Controllers\Auth\ActivationController;

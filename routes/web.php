@@ -7,6 +7,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\InvoiceController;
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -85,6 +86,21 @@ Route::middleware(['auth'])->prefix('employees')->group(function () {
     Route::delete('/{id}/force', [EmployeeController::class, 'forceDelete'])->name('employees.force');
     Route::get('/search', [EmployeeController::class, 'search'])->name('employees.search');
     Route::get('/by-company/{companyId}', [EmployeeController::class, 'byCompany'])->name('employees.by-company');
+});
+
+// Invoices Routes
+Route::middleware(['auth'])->prefix('invoices')->group(function () {
+    Route::get('/', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('/data', [InvoiceController::class, 'data'])->name('invoices.data');
+    Route::get('/data/trashed', [InvoiceController::class, 'dataTrashed'])->name('invoices.data.trashed');
+    Route::post('/', [InvoiceController::class, 'store'])->name('invoices.store');
+    Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
+    Route::put('/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
+    Route::delete('/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
+    Route::post('/{id}/restore', [InvoiceController::class, 'restore'])->name('invoices.restore');
+    Route::delete('/{id}/force', [InvoiceController::class, 'forceDelete'])->name('invoices.force');
+    Route::get('/search', [InvoiceController::class, 'search'])->name('invoices.search');
+    Route::post('/report', [InvoiceController::class, 'report'])->name('invoices.report');
 });
 // Auth::routes();
 use App\Http\Controllers\Auth\ActivationController;

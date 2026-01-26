@@ -13,6 +13,12 @@ class Invoice extends Model
     protected $fillable = ['number', 'date'];
     
     protected $dates = ['date', 'deleted_at'];
+
+//     protected $casts = [
+//     'date' => 'date',
+//     'created_at' => 'datetime',
+//     'deleted_at' => 'datetime',
+// ];
     
     /**
      * Validar que a data não é futura

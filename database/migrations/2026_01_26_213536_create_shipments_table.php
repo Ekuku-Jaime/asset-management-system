@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('shipments', function (Blueprint $table) {
             $table->id();
+            $table->string('guide')->unique();
+            $table->date('date');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\ShipmentController;
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -101,6 +102,22 @@ Route::middleware(['auth'])->prefix('invoices')->group(function () {
     Route::delete('/{id}/force', [InvoiceController::class, 'forceDelete'])->name('invoices.force');
     Route::get('/search', [InvoiceController::class, 'search'])->name('invoices.search');
     Route::post('/report', [InvoiceController::class, 'report'])->name('invoices.report');
+});
+
+// Shipments Routes
+Route::middleware(['auth'])->prefix('shipments')->group(function () {
+    Route::get('/', [ShipmentController::class, 'index'])->name('shipments.index');
+    Route::get('/data', [ShipmentController::class, 'data'])->name('shipments.data');
+    Route::get('/data/trashed', [ShipmentController::class, 'dataTrashed'])->name('shipments.data.trashed');
+    Route::post('/', [ShipmentController::class, 'store'])->name('shipments.store');
+    Route::get('/{shipment}/edit', [ShipmentController::class, 'edit'])->name('shipments.edit');
+    Route::put('/{shipment}', [ShipmentController::class, 'update'])->name('shipments.update');
+    Route::delete('/{shipment}', [ShipmentController::class, 'destroy'])->name('shipments.destroy');
+    Route::post('/{id}/restore', [ShipmentController::class, 'restore'])->name('shipments.restore');
+    Route::delete('/{id}/force', [ShipmentController::class, 'forceDelete'])->name('shipments.force');
+    Route::get('/search', [ShipmentController::class, 'search'])->name('shipments.search');
+    Route::post('/report', [ShipmentController::class, 'report'])->name('shipments.report');
+    Route::get('/statistics', [ShipmentController::class, 'statistics'])->name('shipments.statistics');
 });
 // Auth::routes();
 use App\Http\Controllers\Auth\ActivationController;

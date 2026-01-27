@@ -90,9 +90,9 @@ Route::middleware(['auth'])->prefix('employees')->group(function () {
     Route::get('/search', [EmployeeController::class, 'search'])->name('employees.search');
     Route::get('/by-company/{companyId}', [EmployeeController::class, 'byCompany'])->name('employees.by-company');
 });
-
 // Invoices Routes
 Route::middleware(['auth'])->prefix('invoices')->group(function () {
+    // Rotas principais das faturas
     Route::get('/', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/data', [InvoiceController::class, 'data'])->name('invoices.data');
     Route::get('/data/trashed', [InvoiceController::class, 'dataTrashed'])->name('invoices.data.trashed');
@@ -104,6 +104,19 @@ Route::middleware(['auth'])->prefix('invoices')->group(function () {
     Route::delete('/{id}/force', [InvoiceController::class, 'forceDelete'])->name('invoices.force');
     Route::get('/search', [InvoiceController::class, 'search'])->name('invoices.search');
     Route::post('/report', [InvoiceController::class, 'report'])->name('invoices.report');
+  
+    // Rotas de documentos - CORRETAS
+    Route::post('/{invoice}/documents', [InvoiceController::class, 'uploadDocuments'])
+        ->name('invoices.documents.upload');
+        
+    Route::delete('/documents/{document}', [InvoiceController::class, 'removeDocument'])
+        ->name('invoices.documents.destroy');
+        
+    Route::get('/documents/{document}/download', [InvoiceController::class, 'downloadDocument'])
+        ->name('invoices.documents.download');
+        
+    Route::get('/{invoice}/documents', [InvoiceController::class, 'listDocuments'])
+        ->name('invoices.documents.index');
 });
 
 // Shipments Routes

@@ -39,7 +39,7 @@
                 </h5>
             </div>
             <div class="card-body">
-                <form id="invoiceForm">
+                <form id="invoiceForm" enctype="multipart/form-data">
                     <input type="hidden" id="invoice_id" name="id">
                     
                     <div class="row">
@@ -56,6 +56,24 @@
                                    max="{{ date('Y-m-d') }}">
                             <div class="invalid-feedback" id="date-error"></div>
                             <small class="text-muted">Data da emissão (não pode ser futura)</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Documentos -->
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label for="documents" class="form-label">Documentos de Comprovativo (Opcional)</label>
+                            <input type="file" class="form-control" id="documents" name="documents[]" 
+                                   multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+                            <div class="invalid-feedback" id="documents-error"></div>
+                            
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Tipos permitidos: PDF, JPG, PNG, DOC, XLS (Máx. 10MB cada)
+                            </small>
+                            
+                            <!-- Preview de documentos -->
+                            <div id="documentsPreview" class="mt-3"></div>
                         </div>
                     </div>
                     
@@ -121,16 +139,58 @@
                                 <tr>
                                     <th>Número</th>
                                     <th>Data</th>
+                                    <th>Estado</th>
                                     <th>Criada em</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <!-- Results will be populated here -->
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
-                    <div class="alert alert-info mt-3 mb-0" id="reportSummary">
-                        <!-- Summary will be populated here -->
+                    <div class="alert alert-info mt-3 mb-0" id="reportSummary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Documents Modal -->
+<div class="modal fade" id="documentsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-paperclip me-2"></i>Documentos da Fatura
+                    <span id="modalInvoiceNumber" class="text-primary"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="documentsList" class="mb-4"></div>
+                
+                <!-- Upload new documents -->
+                <div class="card" id="uploadNewCard">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-upload me-2"></i>Adicionar Novos Documentos
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadDocumentsForm" enctype="multipart/form-data">
+                            <input type="hidden" id="modalInvoiceId" name="invoice_id">
+                            
+                            <div class="mb-3">
+                                <label for="newDocuments" class="form-label">Selecionar Ficheiros</label>
+                                <input type="file" class="form-control" id="newDocuments" 
+                                       name="documents[]" multiple>
+                                <small class="text-muted">Selecione um ou mais ficheiros</small>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload me-2"></i>Carregar Documentos
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -171,8 +231,9 @@
                                 <th>ID</th>
                                 <th>Fatura</th>
                                 <th>Data</th>
-                                <th>Registada em</th>
                                 <th>Estado</th>
+                                <th>Registada em</th>
+                                <th>Estado Sistema</th>
                                 <th class="text-end">Ações</th>
                             </tr>
                         </thead>
@@ -218,6 +279,10 @@
         border-color: #ef476f !important;
         background-color: rgba(239, 71, 111, 0.1) !important;
     }
+    
+    .file-icon {
+        font-size: 1.5rem;
+    }
 </style>
 @endpush
 
@@ -247,9 +312,7 @@ $(document).ready(function() {
             },
             responsive: true,
             order: [[0, 'desc']],
-            // language: {
-            //     url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-PT.json'
-            // },
+            
             columns: [
                 { 
                     data: 'id',
@@ -293,12 +356,33 @@ $(document).ready(function() {
                     }
                 },
                 { 
+                    data: 'status',
+                    className: 'text-center',
+                    render: function(data) {
+                        let badgeClass = 'bg-warning';
+                        let icon = '<i class="fas fa-times-circle me-1"></i>';
+                        let text = 'Incompleto';
+                        console.log(data);
+                        
+                        
+                        if (data === 'completo') {
+                            badgeClass = 'bg-success';
+                            icon = '<i class="fas fa-check-circle me-1"></i>';
+                            text = 'Completo';
+                        }
+                        
+                        return `<span class="badge ${badgeClass}">
+                                    ${icon}${text}
+                                </span>`;
+                    }
+                },
+                { 
                     data: 'created_at',
                     render: function(data) {
                         const date = new Date(data);
                         return `<div>
-                                    <div>${data}</div>
-                                    
+                                    <div>${date.toLocaleDateString('pt-PT')}</div>
+                                    <small class="text-muted">${date.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}</small>
                                 </div>`;
                     }
                 },
@@ -306,7 +390,9 @@ $(document).ready(function() {
                     data: 'deleted_at',
                     className: 'text-center',
                     render: function(data) {
-                        if (!data) {
+                        console.log(data);
+                        
+                        if (data) {
                             return `<span class="badge bg-danger">Eliminada</span>`;
                         } else {
                             return `<span class="badge bg-success">Ativa</span>`;
@@ -320,6 +406,14 @@ $(document).ready(function() {
                     className: 'text-end table-actions',
                     render: function(data, type, row) {
                         let buttons = '<div class="btn-group btn-group-sm" role="group">';
+                        
+                        // Botão de documentos (sempre visível)
+                        buttons += `<button class="btn btn-outline-info btn-documents"
+                                      data-id="${data}"
+                                      data-number="${row.number}"
+                                      title="Ver Documentos">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>`;
                         
                         if (currentView === 'active') {
                             buttons += `<button class="btn btn-outline-primary btn-edit"
@@ -355,8 +449,6 @@ $(document).ready(function() {
                                             title="Eliminar Permanentemente">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>`;
-                            } else {
-                                buttons += `<span class="text-muted"><small>Apenas para administradores</small></span>`;
                             }
                         }
                         
@@ -468,10 +560,14 @@ $(document).ready(function() {
         const url = invoiceId ? `/invoices/${invoiceId}` : "{{ route('invoices.store') }}";
         const method = invoiceId ? 'PUT' : 'POST';
         
+        const formData = new FormData(this);
+        
         $.ajax({
             url: url,
             method: method,
-            data: $(this).serialize(),
+            data: formData,
+            processData: false,
+            contentType: false,
             dataType: 'json',
             success: function(response) {
                 Toast.fire({
@@ -528,29 +624,59 @@ $(document).ready(function() {
         const invoiceNumber = $(this).data('number');
         const invoiceDate = $(this).data('date');
         
-        // Show form
-        $('#invoiceFormCard').slideDown();
-        $('#toggleForm').html('<i class="fas fa-times me-2"></i>Fechar Formulário');
+        // Show loading
+        const button = $(this);
+        button.prop('disabled', true).find('i').addClass('fa-spinner fa-spin');
         
-        // Set form title
-        $('#formTitle').html(`<i class="fas fa-edit me-2"></i>Editar Fatura: ${invoiceNumber}`);
-        
-        // Format date for input field (YYYY-MM-DD)
-        const dateObj = new Date(invoiceDate);
-        const formattedDate = dateObj.toISOString().split('T')[0];
-        
-        // Fill form data
-        $('#invoice_id').val(invoiceId);
-        $('#number').val(invoiceNumber);
-        $('#date').val(formattedDate);
-        
-        // Validate date
-        $('#date').trigger('change');
-        
-        // Scroll to form
-        $('html, body').animate({
-            scrollTop: $('#invoiceFormCard').offset().top - 20
-        }, 500);
+        // Get invoice data with documents
+        $.ajax({
+            url: `/invoices/${invoiceId}/edit`,
+            method: 'GET',
+            success: function(response) {
+                // Show form
+                $('#invoiceFormCard').slideDown();
+                $('#toggleForm').html('<i class="fas fa-times me-2"></i>Fechar Formulário');
+                
+                // Set form title
+                $('#formTitle').html(`<i class="fas fa-edit me-2"></i>Editar Fatura: ${invoiceNumber}`);
+                
+                // Format date for input field (YYYY-MM-DD)
+                const dateObj = new Date(invoiceDate);
+                const formattedDate = dateObj.toISOString().split('T')[0];
+                
+                // Fill form data
+                $('#invoice_id').val(invoiceId);
+                $('#number').val(invoiceNumber);
+                $('#date').val(formattedDate);
+                
+                // Show existing documents
+                previewDocuments(response.data.documents);
+                
+                // Validate date
+                $('#date').trigger('change');
+                
+                // Scroll to form
+                $('html, body').animate({
+                    scrollTop: $('#invoiceFormCard').offset().top - 20
+                }, 500);
+            },
+            error: function() {
+                Toast.fire({
+                    icon: 'error',
+                    title: 'Erro ao carregar dados da fatura'
+                });
+            },
+            complete: function() {
+                button.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin');
+            }
+        });
+    });
+    
+    // Show documents modal
+    $(document).on('click', '.btn-documents', function() {
+        const invoiceId = $(this).data('id');
+        const invoiceNumber = $(this).data('number');
+        showDocuments(invoiceId, invoiceNumber);
     });
     
     // Delete invoice (soft delete) - only for admins
@@ -772,12 +898,16 @@ $(document).ready(function() {
                     response.data.forEach(function(invoice) {
                         const date = new Date(invoice.date);
                         const created = new Date(invoice.created_at);
+                        const statusBadge = invoice.status === 'completo' ? 
+                            '<span class="badge bg-success">Completo</span>' : 
+                            '<span class="badge bg-warning">Incompleto</span>';
                         
                         $('#reportTable tbody').append(`
                             <tr>
                                 <td><strong>${invoice.number}</strong></td>
                                 <td>${date.toLocaleDateString('pt-PT')}</td>
-                                <td>${created.toLocaleDateString('pt-PT')} ${created.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}</td>
+                                <td>${statusBadge}</td>
+                                <td>${created.toLocaleDateString('pt-PT')}</td>
                             </tr>
                         `);
                     });
@@ -819,16 +949,269 @@ $(document).ready(function() {
         });
     });
     
-    // Reset form
+    // Upload new documents
+    $('#uploadDocumentsForm').submit(function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const invoiceId = $('#modalInvoiceId').val();
+        
+        $.ajax({
+            url: `/invoices/${invoiceId}/documents`,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                Toast.fire({
+                    icon: 'success',
+                    title: response.message
+                });
+                loadDocuments(invoiceId);
+                table.ajax.reload();
+                $('#uploadDocumentsForm')[0].reset();
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    Toast.fire({
+                        icon: 'error',
+                        title: 'Erro de validação nos ficheiros'
+                    });
+                } else {
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.message || 'Erro ao carregar documentos'
+                    });
+                }
+            }
+        });
+    });
+    
+    // Remove document from edit form
+    $(document).on('click', '.btn-remove-existing-doc', function() {
+        const docId = $(this).data('id');
+        const docName = $(this).closest('.d-flex').find('span').text();
+        
+        Swal.fire({
+            title: 'Remover Documento',
+            html: `Tem certeza que deseja remover <strong>${docName}</strong>?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, remover',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed && isAdmin) {
+                $.ajax({
+                    url: `/invoices/documents/${docId}`,
+                    method: 'DELETE',
+                    success: function() {
+                        Toast.fire({
+                            icon: 'success',
+                            title: 'Documento removido com sucesso!'
+                        });
+                        // Remove from preview
+                        $(this).closest('.d-flex').remove();
+                        // Update status in table
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        Toast.fire({
+                            icon: 'error',
+                            title: xhr.responseJSON?.message || 'Erro ao remover documento'
+                        });
+                    }
+                });
+            } else if (!isAdmin) {
+                Toast.fire({
+                    icon: 'warning',
+                    title: 'Apenas administradores podem remover documentos'
+                });
+            }
+        });
+    });
+    
+    // Functions
+    function showDocuments(invoiceId, invoiceNumber) {
+        $('#modalInvoiceId').val(invoiceId);
+        $('#modalInvoiceNumber').text(invoiceNumber);
+        
+        // Only show upload card for admins
+        if (!isAdmin) {
+            $('#uploadNewCard').hide();
+        } else {
+            $('#uploadNewCard').show();
+        }
+        
+        loadDocuments(invoiceId);
+        $('#documentsModal').modal('show');
+    }
+    
+    function loadDocuments(invoiceId) {
+        $.ajax({
+            url: `/invoices/${invoiceId}/documents`,
+            method: 'GET',
+            success: function(response) {
+                let html = '';
+                
+                if (response.data.length > 0) {
+                    html += '<h6 class="mb-3">Documentos Anexados</h6>';
+                    html += '<div class="list-group">';
+                    
+                    response.data.forEach(function(doc) {
+                        const sizeMB = (doc.size / (1024*1024)).toFixed(2);
+                        const icon = getFileIcon(doc.mime_type);
+                        
+                        html += `
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <i class="${icon} fa-lg me-3 text-primary"></i>
+                                    <div>
+                                        <h6 class="mb-1">${doc.original_name}</h6>
+                                        <small class="text-muted">
+                                            ${doc.mime_type} • ${sizeMB} MB
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="/invoices/documents/${doc.id}/download" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       target="_blank">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    ${isAdmin ? 
+                                        `<button class="btn btn-sm btn-outline-danger btn-remove-doc"
+                                           data-id="${doc.id}"
+                                           data-name="${doc.original_name}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>` : ''
+                                    }
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                } else {
+                    html += `
+                    <div class="text-center py-4">
+                        <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                        <p class="text-muted mb-0">Nenhum documento anexado</p>
+                    </div>`;
+                }
+                
+                $('#documentsList').html(html);
+            },
+            error: function() {
+                $('#documentsList').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Erro ao carregar documentos
+                    </div>
+                `);
+            }
+        });
+    }
+
+    // Evento para remover documento (no modal de documentos)
+$(document).on('click', '.btn-remove-doc', function() {
+    const docId = $(this).data('id');
+    const docName = $(this).data('name');
+    
+    Swal.fire({
+        title: 'Remover Documento',
+        html: `Tem certeza que deseja remover <strong>${docName}</strong>?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, remover',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: `/invoices/documents/${docId}`, // CORRIGIDO
+                method: 'DELETE',
+                success: function(response) {
+                    Toast.fire({
+                        icon: 'success',
+                        title: response.message
+                    });
+                    // Recarregar lista de documentos
+                    loadDocuments($('#modalInvoiceId').val());
+                    // Atualizar tabela para refletir mudança de status
+                    table.ajax.reload();
+                },
+                error: function(xhr) {
+                    if (xhr.status === 403) {
+                        Toast.fire({
+                            icon: 'error',
+                            title: 'Apenas administradores podem remover documentos'
+                        });
+                    } else {
+                        Toast.fire({
+                            icon: 'error',
+                            title: xhr.responseJSON?.message || 'Erro ao remover documento'
+                        });
+                    }
+                }
+            });
+        }
+    });
+});
+    
+    function getFileIcon(mimeType) {
+        if (mimeType.includes('pdf')) return 'fas fa-file-pdf';
+        if (mimeType.includes('image')) return 'fas fa-file-image';
+        if (mimeType.includes('word') || mimeType.includes('document')) return 'fas fa-file-word';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'fas fa-file-excel';
+        return 'fas fa-file';
+    }
+    
+    function previewDocuments(documents) {
+        let html = '';
+        
+        if (documents && documents.length > 0) {
+            html += '<div class="card"><div class="card-body"><h6>Documentos Existentes</h6>';
+            
+            documents.forEach(function(doc) {
+                const icon = getFileIcon(doc.mime_type);
+                
+                html += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex align-items-center">
+                        <i class="${icon} me-2"></i>
+                        <span>${doc.original_name}</span>
+                    </div>
+                    <div>
+                        <a href="/invoices/documents/${doc.id}/download" 
+                           class="btn btn-sm btn-outline-primary"
+                           target="_blank">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        ${isAdmin ? 
+                            `<button class="btn btn-sm btn-outline-danger btn-remove-existing-doc"
+                               data-id="${doc.id}">
+                                <i class="fas fa-times"></i>
+                            </button>` : ''
+                        }
+                    </div>
+                </div>`;
+            });
+            
+            html += '</div></div>';
+        }
+        
+        $('#documentsPreview').html(html);
+    }
+    
     function resetForm() {
         $('#invoiceForm')[0].reset();
         $('#invoice_id').val('');
         $('.is-invalid').removeClass('is-invalid');
         $('.invalid-feedback').text('');
         $('#date').removeClass('future-date');
+        $('#documentsPreview').empty();
     }
     
-    // Reset report
     function resetReport() {
         $('#reportForm')[0].reset();
         $('#reportResults').hide();

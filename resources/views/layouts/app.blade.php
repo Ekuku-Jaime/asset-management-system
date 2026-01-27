@@ -1,27 +1,28 @@
 <!DOCTYPE html>
 <html lang="pt" data-bs-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Asset Management')</title>
-    
+
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- DataTables -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
-    
+
     <!-- SweetAlert2 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    
+
     <!-- Custom CSS -->
     <style>
         :root {
@@ -487,6 +488,7 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -552,9 +554,10 @@
             color: #60a5fa;
         }
     </style>
-    
+
     @stack('styles')
 </head>
+
 <body>
     <!-- Page Wrapper -->
     <div id="wrapper">
@@ -570,7 +573,8 @@
             <div class="list-group list-group-flush">
                 <!-- Dashboard -->
                 <div class="sidebar-item">
-                    <a href="{{ route('dashboard') }}" class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                    <a href="{{ route('dashboard') }}"
+                        class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <i class="fas fa-tachometer-alt"></i>
                         <span>Dashboard</span>
                     </a>
@@ -581,39 +585,50 @@
                     <a class="sidebar-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="fas fa-folder"></i>
                         <span>Gestão</span>
-                        <span class="sidebar-badge">6</span>
+                        <span class="sidebar-badge">7</span>
                     </a>
                     <div class="dropdown-menu sidebar-dropdown-menu">
-                        <a href="{{ route('companies.index') }}" class="sidebar-dropdown-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">
+                        <a href="{{ route('companies.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">
                             <i class="fas fa-building me-2"></i>Empresas
                         </a>
-                        <a href="{{ route('employees.index') }}" class="sidebar-dropdown-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
+                        <a href="{{ route('employees.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
                             <i class="fas fa-user-tie me-2"></i>Colabora
                         </a>
-                        <a href="{{ route('suppliers.index') }}" class="sidebar-dropdown-item {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
+                        <a href="{{ route('suppliers.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
                             <i class="fas fa-truck me-2"></i>Fornece
                         </a>
-                        <a href="{{ route('projects.index') }}" class="sidebar-dropdown-item {{ request()->routeIs('projects.*') ? 'active' : '' }}">
+                        <a href="{{ route('projects.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('projects.*') ? 'active' : '' }}">
                             <i class="fas fa-project-diagram me-2"></i>Projetos
                         </a>
-                        <a href="{{ route('invoices.index') }}" class="sidebar-dropdown-item {{ request()->routeIs('invoices.*') ? 'active' : '' }}">
+                        <a href="{{ route('invoices.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('invoices.*') ? 'active' : '' }}">
                             <i class="fas fa-file-invoice-dollar me-2"></i>Faturas
                         </a>
-                        <a href="{{ route('shipments.index') }}" class="sidebar-dropdown-item {{ request()->routeIs('shipments.*') ? 'active' : '' }}">
+                        <a href="{{ route('shipments.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('shipments.*') ? 'active' : '' }}">
                             <i class="fas fa-shipping-fast me-2"></i>Remessas
+                        </a>
+                        <a href="{{ route('requests.index') }}"
+                            class="sidebar-dropdown-item {{ request()->routeIs('requests.*') ? 'active' : '' }}">
+                            <i class="fas fa-clipboard-list me-2"></i>Requisições
                         </a>
                     </div>
                 </div>
 
                 <!-- Utilizadores -->
                 <div class="sidebar-item">
-                    <a href="{{ route('users.index') }}" class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
+                    <a href="{{ route('users.index') }}"
+                        class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
                         <i class="fas fa-users"></i>
                         <span>Utilizadores</span>
                         @php
                             $pendingUsers = \App\Models\User::where('active', false)->count();
                         @endphp
-                        @if($pendingUsers > 0)
+                        @if ($pendingUsers > 0)
                             <span class="sidebar-badge">{{ $pendingUsers }}</span>
                         @endif
                     </a>
@@ -706,13 +721,14 @@
                                     <span>Configurações</span>
                                 </a> --}}
                                 <div class="dropdown-divider"></div>
-                                <a href="{{ route('logout') }}" 
-                                   onclick="event.preventDefault(); document.getElementById('logout-form').submit();" 
-                                   class="user-dropdown-item text-danger">
+                                <a href="{{ route('logout') }}"
+                                    onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
+                                    class="user-dropdown-item text-danger">
                                     <i class="fas fa-sign-out-alt"></i>
                                     <span>Sair</span>
                                 </a>
-                                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+                                <form id="logout-form" action="{{ route('logout') }}" method="POST"
+                                    style="display: none;">
                                     @csrf
                                 </form>
                             </div>
@@ -770,19 +786,19 @@
     <!-- Scripts -->
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    
+
     <!-- DataTables -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
-    
+
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
+
     <!-- Custom JavaScript -->
     <script>
         // SweetAlert Global Config
@@ -809,10 +825,10 @@
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             const sidebar = document.getElementById('sidebar-wrapper');
             const pageContent = document.getElementById('page-content-wrapper');
-            
+
             sidebar.classList.toggle('collapsed');
             pageContent.classList.toggle('expanded');
-            
+
             // Update icon
             const icon = this.querySelector('i');
             if (sidebar.classList.contains('collapsed')) {
@@ -822,7 +838,7 @@
                 icon.classList.remove('fa-chevron-right');
                 icon.classList.add('fa-bars');
             }
-            
+
             // Save state to localStorage
             localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
         });
@@ -837,7 +853,7 @@
         document.addEventListener('click', function(event) {
             const userDropdown = document.getElementById('userDropdownMenu');
             const userToggle = document.getElementById('userDropdownToggle');
-            
+
             if (!userToggle.contains(event.target) && !userDropdown.contains(event.target)) {
                 userDropdown.style.display = 'none';
             }
@@ -849,10 +865,10 @@
             const currentTheme = html.getAttribute('data-bs-theme');
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             const icon = this.querySelector('i');
-            
+
             html.setAttribute('data-bs-theme', newTheme);
             icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-            
+
             // Save theme preference
             localStorage.setItem('theme', newTheme);
         });
@@ -873,7 +889,7 @@
                 const sidebar = document.getElementById('sidebar-wrapper');
                 const pageContent = document.getElementById('page-content-wrapper');
                 const toggleIcon = document.getElementById('sidebarToggle').querySelector('i');
-                
+
                 sidebar.classList.add('collapsed');
                 pageContent.classList.add('expanded');
                 toggleIcon.classList.remove('fa-bars');
@@ -884,7 +900,7 @@
             const savedTheme = localStorage.getItem('theme') || 'light';
             const html = document.documentElement;
             const themeIcon = document.getElementById('themeToggle').querySelector('i');
-            
+
             html.setAttribute('data-bs-theme', savedTheme);
             themeIcon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
 
@@ -923,10 +939,13 @@
                 },
                 responsive: true,
                 pageLength: 10,
-                lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
+                lengthMenu: [
+                    [5, 10, 25, 50, -1],
+                    [5, 10, 25, 50, "Todos"]
+                ],
                 dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
-                     '<"row"<"col-sm-12"tr>>' +
-                     '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+                    '<"row"<"col-sm-12"tr>>' +
+                    '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
             });
         }
 
@@ -945,11 +964,11 @@
         document.addEventListener('DOMContentLoaded', function() {
             const currentPath = window.location.pathname;
             const sidebarLinks = document.querySelectorAll('.sidebar-link, .sidebar-dropdown-item');
-            
+
             sidebarLinks.forEach(function(link) {
                 if (link.href && link.href.includes(currentPath)) {
                     link.classList.add('active');
-                    
+
                     // Expand parent dropdown if needed
                     const parentDropdown = link.closest('.sidebar-dropdown');
                     if (parentDropdown) {
@@ -962,4 +981,5 @@
 
     @stack('scripts')
 </body>
+
 </html>

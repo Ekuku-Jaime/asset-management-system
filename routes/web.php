@@ -9,6 +9,8 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\Auth\ActivationController;
+use App\Http\Controllers\RequestController;
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -119,8 +121,25 @@ Route::middleware(['auth'])->prefix('shipments')->group(function () {
     Route::post('/report', [ShipmentController::class, 'report'])->name('shipments.report');
     Route::get('/statistics', [ShipmentController::class, 'statistics'])->name('shipments.statistics');
 });
+
+// Requests Routes
+Route::middleware(['auth'])->prefix('requests')->group(function () {
+    Route::get('/', [RequestController::class, 'index'])->name('requests.index');
+    Route::get('/data', [RequestController::class, 'data'])->name('requests.data');
+    Route::get('/data/trashed', [RequestController::class, 'dataTrashed'])->name('requests.data.trashed');
+    Route::post('/', [RequestController::class, 'store'])->name('requests.store');
+    Route::get('/{request}/edit', [RequestController::class, 'edit'])->name('requests.edit');
+    Route::put('/{request}', [RequestController::class, 'update'])->name('requests.update');
+    Route::delete('/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
+    Route::post('/{id}/restore', [RequestController::class, 'restore'])->name('requests.restore');
+    Route::delete('/{id}/force', [RequestController::class, 'forceDelete'])->name('requests.force');
+    Route::get('/search', [RequestController::class, 'search'])->name('requests.search');
+    Route::post('/report', [RequestController::class, 'report'])->name('requests.report');
+    Route::get('/statistics', [RequestController::class, 'statistics'])->name('requests.statistics');
+    Route::get('/generate-code', [RequestController::class, 'generateCode'])->name('requests.generate-code');
+});
 // Auth::routes();
-use App\Http\Controllers\Auth\ActivationController;
+
 
 // Rotas públicas de ativação
 Route::get('/ativar/{token}', [ActivationController::class, 'showActivationForm'])

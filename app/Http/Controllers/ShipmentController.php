@@ -3,13 +3,35 @@
 namespace App\Http\Controllers;
 
 use App\Models\Shipment;
+use App\Models\ShipmentDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 use Carbon\Carbon;
 
 class ShipmentController extends Controller
 {
+    /**
+     * Diretório de upload
+     */
+    private $uploadPath = 'shipments/documents';
+    
+    /**
+     * Tipos de ficheiros permitidos
+     */
+    private $allowedMimes = [
+        'pdf', 'jpg', 'jpeg', 'png', 
+        'doc', 'docx'
+    ];
+    
+    /**
+     * Tamanho máximo (10MB)
+     */
+    private $maxFileSize = 10240;
+
     /**
      * Verificar se o usuário tem permissão de admin
      */
@@ -35,50 +57,72 @@ class ShipmentController extends Controller
     /**
      * Retornar dados para DataTable
      */
- /**
- * Retornar dados para DataTable
- */
-public function data(Request $request)
-{
-    $query = Shipment::query();
-    
-    // Check if we want trashed items
-    if ($request->has('view') && $request->view === 'inactive') {
-        $query = Shipment::onlyTrashed();
+    public function data(Request $request)
+    {
+        $query = Shipment::withCount('documents')
+            ->select(['id', 'guide', 'date', 'status', 'created_at', 'deleted_at']);
+        
+        // Check if we want trashed items
+        if ($request->has('view') && $request->view === 'inactive') {
+            $query = Shipment::onlyTrashed();
+        }
+        
+        return DataTables::eloquent($query)
+            ->addColumn('actions', function($shipment) {
+                return '';
+            })
+            ->editColumn('guide', function($shipment) {
+                return strtoupper($shipment->guide);
+            })
+            ->editColumn('date', function($shipment) {
+                return Carbon::parse($shipment->date);
+            })
+            ->editColumn('status', function($shipment) {
+                $badgeClass = $shipment->status == 'completo' ? 'bg-success' : 'bg-warning';
+                $icon = $shipment->status == 'completo' ? 'fa-check-circle' : 'fa-times-circle';
+                $text = $shipment->status == 'completo' ? 'Completo' : 'Incompleto';
+                
+                return '<span class="badge ' . $badgeClass . '">
+                            <i class="fas ' . $icon . ' me-1"></i>' . $text . '
+                        </span>';
+            })
+            ->editColumn('created_at', function($shipment) {
+                return Carbon::parse($shipment->created_at);
+            })
+            ->editColumn('deleted_at', function($shipment) {
+                return $shipment->deleted_at ? 
+                    '<span class="badge bg-danger">Eliminada</span>' : 
+                    '<span class="badge bg-success">Ativa</span>';
+            })
+            ->rawColumns(['actions', 'deleted_at', 'status'])
+            ->make(true);
     }
-    
-    return DataTables::eloquent($query)
-        ->addColumn('actions', function($shipment) {
-            return '';
-        })
-        ->editColumn('guide', function($shipment) {
-            return strtoupper($shipment->guide);
-        })
-        ->editColumn('date', function($shipment) {
-            return Carbon::parse($shipment->date);
-        })
-        ->editColumn('created_at', function($shipment) {
-            return Carbon::parse($shipment->created_at);
-        })
-        ->editColumn('deleted_at', function($shipment) {
-            return $shipment->deleted_at ? Carbon::parse($shipment->deleted_at) : null;
-        })
-        ->rawColumns(['actions'])
-        ->make(true);
-}
+
     /**
      * Retornar dados eliminados para DataTable
      */
-   public function dataTrashed(Request $request)
-{
-    return DataTables::eloquent(Shipment::onlyTrashed())
-        ->addColumn('actions', '')
-        ->editColumn('guide', function($shipment) {
-            return strtoupper($shipment->guide);
-        })
-        ->rawColumns(['actions'])
-        ->toJson();
-}
+    public function dataTrashed(Request $request)
+    {
+        return DataTables::eloquent(Shipment::onlyTrashed()
+            ->withCount('documents')
+            ->select(['id', 'guide', 'date', 'status', 'created_at', 'deleted_at']))
+            ->addColumn('actions', '')
+            ->editColumn('guide', function($shipment) {
+                return strtoupper($shipment->guide);
+            })
+            ->editColumn('status', function($shipment) {
+                $badgeClass = $shipment->status == 'completo' ? 'bg-success' : 'bg-warning';
+                $icon = $shipment->status == 'completo' ? 'fa-check-circle' : 'fa-times-circle';
+                $text = $shipment->status == 'completo' ? 'Completo' : 'Incompleto';
+                
+                return '<span class="badge ' . $badgeClass . '">
+                            <i class="fas ' . $icon . ' me-1"></i>' . $text . '
+                        </span>';
+            })
+            ->rawColumns(['actions', 'status'])
+            ->toJson();
+    }
+
     /**
      * Criar nova remessa
      */
@@ -91,6 +135,9 @@ public function data(Request $request)
                 'date',
                 'before_or_equal:today'
             ],
+            'documents' => 'nullable|array',
+            'documents.*' => 'file|mimes:' . implode(',', $this->allowedMimes) . 
+                           '|max:' . $this->maxFileSize
         ], [
             'guide.required' => 'O guia da remessa é obrigatório.',
             'guide.unique' => 'Este guia já está registado.',
@@ -98,6 +145,10 @@ public function data(Request $request)
             'date.required' => 'A data da remessa é obrigatória.',
             'date.date' => 'A data deve ser uma data válida.',
             'date.before_or_equal' => 'A data da remessa não pode ser no futuro.',
+            'documents.*.file' => 'O ficheiro deve ser válido.',
+            'documents.*.mimes' => 'Tipo de ficheiro não permitido. Tipos permitidos: ' . 
+                                   implode(', ', $this->allowedMimes),
+            'documents.*.max' => 'O ficheiro não pode exceder :max KB.'
         ]);
 
         if ($validator->fails()) {
@@ -108,23 +159,56 @@ public function data(Request $request)
         }
 
         try {
+            DB::beginTransaction();
+
             $shipment = Shipment::create([
                 'guide' => $request->guide,
                 'date' => $request->date,
             ]);
 
+            // Processar upload de documentos
+            if ($request->hasFile('documents')) {
+                foreach ($request->file('documents') as $file) {
+                    $this->storeDocument($file, $shipment);
+                }
+                $shipment->updateStatus();
+            }
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Remessa criada com sucesso!',
-                'data' => $shipment
+                'data' => $shipment->load('documents')
             ]);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao criar remessa: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Método para armazenar documento
+     */
+    private function storeDocument($file, $shipment)
+    {
+        $originalName = $file->getClientOriginalName();
+        $extension = $file->getClientOriginalExtension();
+        $filename = time() . '_' . Str::random(10) . '.' . $extension;
+        $path = $file->storeAs($this->uploadPath, $filename, 'public');
+
+        return ShipmentDocument::create([
+            'shipment_id' => $shipment->id,
+            'filename' => $filename,
+            'original_name' => $originalName,
+            'mime_type' => $file->getMimeType(),
+            'size' => $file->getSize(),
+            'path' => $path
+        ]);
     }
 
     /**
@@ -134,7 +218,7 @@ public function data(Request $request)
     {
         return response()->json([
             'success' => true,
-            'data' => $shipment
+            'data' => $shipment->load('documents')
         ]);
     }
 
@@ -150,6 +234,9 @@ public function data(Request $request)
                 'date',
                 'before_or_equal:today'
             ],
+            'documents' => 'nullable|array',
+            'documents.*' => 'file|mimes:' . implode(',', $this->allowedMimes) . 
+                           '|max:' . $this->maxFileSize
         ], [
             'guide.required' => 'O guia da remessa é obrigatório.',
             'guide.unique' => 'Este guia já está registado.',
@@ -157,6 +244,9 @@ public function data(Request $request)
             'date.required' => 'A data da remessa é obrigatória.',
             'date.date' => 'A data deve ser uma data válida.',
             'date.before_or_equal' => 'A data da remessa não pode ser no futuro.',
+            'documents.*.file' => 'O ficheiro deve ser válido.',
+            'documents.*.mimes' => 'Tipo de ficheiro não permitido.',
+            'documents.*.max' => 'O ficheiro não pode exceder :max KB.'
         ]);
 
         if ($validator->fails()) {
@@ -167,10 +257,23 @@ public function data(Request $request)
         }
 
         try {
+            DB::beginTransaction();
+
             $shipment->update([
                 'guide' => $request->guide,
                 'date' => $request->date,
             ]);
+
+            // Processar upload de novos documentos
+            if ($request->hasFile('documents')) {
+                foreach ($request->file('documents') as $file) {
+                    $this->storeDocument($file, $shipment);
+                }
+            }
+            
+            $shipment->updateStatus();
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
@@ -178,6 +281,7 @@ public function data(Request $request)
             ]);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao atualizar remessa: ' . $e->getMessage()
@@ -259,6 +363,13 @@ public function data(Request $request)
 
         try {
             $shipment = Shipment::withTrashed()->findOrFail($id);
+            
+            // Eliminar documentos primeiro
+            foreach ($shipment->documents as $document) {
+                Storage::disk('public')->delete($document->path);
+                $document->delete();
+            }
+            
             $shipment->forceDelete();
 
             return response()->json([
@@ -367,5 +478,115 @@ public function data(Request $request)
                 'message' => 'Erro ao obter estatísticas: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Upload de documentos para uma remessa existente
+     */
+    public function uploadDocuments(Request $request, Shipment $shipment)
+    {
+        $validator = Validator::make($request->all(), [
+            'documents' => 'required|array',
+            'documents.*' => 'required|file|mimes:' . implode(',', $this->allowedMimes) . 
+                           '|max:' . $this->maxFileSize
+        ], [
+            'documents.required' => 'Selecione pelo menos um ficheiro.',
+            'documents.*.required' => 'O ficheiro é obrigatório.',
+            'documents.*.file' => 'O ficheiro deve ser válido.',
+            'documents.*.mimes' => 'Tipo de ficheiro não permitido.',
+            'documents.*.max' => 'O ficheiro não pode exceder :max KB.'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $uploadedFiles = [];
+            
+            foreach ($request->file('documents') as $file) {
+                $document = $this->storeDocument($file, $shipment);
+                $uploadedFiles[] = $document;
+            }
+            
+            $shipment->updateStatus();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Documentos carregados com sucesso!',
+                'data' => $uploadedFiles
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao carregar documentos: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remover documento
+     */
+    public function removeDocument(ShipmentDocument $document)
+    {
+        try {
+            // Verificar permissão
+            if (!auth()->user()->isAdmin()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Apenas administradores podem remover documentos.'
+                ], 403);
+            }
+
+            // Remover ficheiro do storage
+            Storage::disk('public')->delete($document->path);
+            
+            // Remover do banco de dados
+            $document->delete();
+            
+            // Atualizar status da remessa
+            $document->shipment->updateStatus();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Documento removido com sucesso!'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao remover documento: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download documento
+     */
+    public function downloadDocument(ShipmentDocument $document)
+    {
+        if (!Storage::disk('public')->exists($document->path)) {
+            abort(404, 'Ficheiro não encontrado.');
+        }
+
+        return Storage::disk('public')->download(
+            $document->path, 
+            $document->original_name
+        );
+    }
+
+    /**
+     * Listar documentos de uma remessa
+     */
+    public function listDocuments(Shipment $shipment)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $shipment->documents
+        ]);
     }
 }

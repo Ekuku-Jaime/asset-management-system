@@ -11,16 +11,16 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h4 class="card-title mb-0 fw-bold">
-                            <i class="fas fa-shipping-fast me-2"></i>Gestão de Remessas
+                            <i class="fas fa-truck me-2"></i>Gestão de Remessas
                         </h4>
                         <p class="text-muted mb-0">Gerir remessas do sistema</p>
                     </div>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-info" id="btnStatistics">
-                            <i class="fas fa-chart-pie me-2"></i>Estatísticas
-                        </button>
                         <button class="btn btn-outline-info" id="btnReport">
                             <i class="fas fa-chart-bar me-2"></i>Relatório
+                        </button>
+                        <button class="btn btn-outline-info" id="btnStatistics">
+                            <i class="fas fa-chart-pie me-2"></i>Estatísticas
                         </button>
                         <button class="btn btn-primary" id="toggleForm">
                             <i class="fas fa-plus me-2"></i>Nova Remessa
@@ -38,27 +38,45 @@
         <div class="card">
             <div class="card-header bg-light">
                 <h5 class="mb-0" id="formTitle">
-                    <i class="fas fa-shipping-fast me-2"></i>Adicionar Nova Remessa
+                    <i class="fas fa-truck me-2"></i>Adicionar Nova Remessa
                 </h5>
             </div>
             <div class="card-body">
-                <form id="shipmentForm">
+                <form id="shipmentForm" enctype="multipart/form-data">
                     <input type="hidden" id="shipment_id" name="id">
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="guide" class="form-label">Guia/Número da Remessa *</label>
+                            <label for="guide" class="form-label">Número do Guia *</label>
                             <input type="text" class="form-control" id="guide" name="guide" required
-                                   placeholder="Ex: REM2023001, GUID123456">
+                                   placeholder="Ex: GUIA/2023/001">
                             <div class="invalid-feedback" id="guide-error"></div>
-                            <small class="text-muted">Código único da remessa</small>
+                            <small class="text-muted">Código único do guia de remessa</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="date" class="form-label">Data da Remessa *</label>
                             <input type="date" class="form-control" id="date" name="date" required
                                    max="{{ date('Y-m-d') }}">
                             <div class="invalid-feedback" id="date-error"></div>
-                            <small class="text-muted">Data de envio (não pode ser futura)</small>
+                            <small class="text-muted">Data da remessa (não pode ser futura)</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Documentos -->
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label for="documents" class="form-label">Documentos de Comprovativo (Opcional)</label>
+                            <input type="file" class="form-control" id="documents" name="documents[]" 
+                                   multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+                            <div class="invalid-feedback" id="documents-error"></div>
+                            
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Tipos permitidos: PDF, JPG, PNG, DOC, XLS (Máx. 10MB cada)
+                            </small>
+                            
+                            <!-- Preview de documentos -->
+                            <div id="documentsPreview" class="mt-3"></div>
                         </div>
                     </div>
                     
@@ -74,29 +92,6 @@
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Statistics Modal -->
-<div class="modal fade" id="statisticsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-chart-pie me-2"></i>Estatísticas de Remessas
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row" id="statisticsContent">
-                    <div class="col-md-12 text-center py-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">A carregar...</span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -147,17 +142,82 @@
                                 <tr>
                                     <th>Guia</th>
                                     <th>Data</th>
+                                    <th>Estado</th>
                                     <th>Criada em</th>
-                                    <th>Status</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <!-- Results will be populated here -->
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
-                    <div class="alert alert-info mt-3 mb-0" id="reportSummary">
-                        <!-- Summary will be populated here -->
+                    <div class="alert alert-info mt-3 mb-0" id="reportSummary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Modal -->
+<div class="modal fade" id="statisticsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-pie me-2"></i>Estatísticas de Remessas
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="statisticsContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2">Carregando estatísticas...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Documents Modal -->
+<div class="modal fade" id="documentsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-paperclip me-2"></i>Documentos da Remessa
+                    <span id="modalShipmentGuide" class="text-primary"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="documentsList" class="mb-4"></div>
+                
+                <!-- Upload new documents -->
+                <div class="card" id="uploadNewCard">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-upload me-2"></i>Adicionar Novos Documentos
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadDocumentsForm" enctype="multipart/form-data">
+                            <input type="hidden" id="modalShipmentId" name="shipment_id">
+                            
+                            <div class="mb-3">
+                                <label for="newDocuments" class="form-label">Selecionar Ficheiros</label>
+                                <input type="file" class="form-control" id="newDocuments" 
+                                       name="documents[]" multiple>
+                                <small class="text-muted">Selecione um ou mais ficheiros</small>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload me-2"></i>Carregar Documentos
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -196,16 +256,14 @@
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Remessa</th>
+                                <th>Guia</th>
                                 <th>Data</th>
-                                <th>Registada em</th>
                                 <th>Estado</th>
+                                <th>Registada em</th>
+                                <th>Estado Sistema</th>
                                 <th class="text-end">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <!-- DataTables will populate this -->
-                        </tbody>
                     </table>
                 </div>
             </div>
@@ -219,7 +277,7 @@
     .shipment-avatar {
         width: 40px;
         height: 40px;
-        background: linear-gradient(135deg, #7209b7, #560bad);
+        background: linear-gradient(135deg, #4cc9f0, #4361ee);
         color: white;
         border-radius: 50%;
         display: flex;
@@ -231,25 +289,17 @@
     
     .table-actions {
         min-width: 180px;
-        white-space: nowrap;
     }
     
-    .guide-badge {
+    .guide-number {
         font-family: 'Courier New', monospace;
         font-weight: bold;
-        color: #7209b7;
-        background-color: #f8f9fa;
-        border: 1px solid #e0d6f5;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.875rem;
-        display: inline-block;
+        color: #4361ee;
     }
     
     .date-badge {
         font-size: 0.875rem;
         padding: 0.25rem 0.75rem;
-        border-radius: 20px;
     }
     
     .future-date {
@@ -257,14 +307,17 @@
         background-color: rgba(239, 71, 111, 0.1) !important;
     }
     
-    .stat-card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
+    .file-icon {
+        font-size: 1.5rem;
     }
     
-    .stat-card:hover {
+    .statistics-card {
+        border: none;
+        border-radius: 10px;
+        transition: transform 0.3s;
+    }
+    
+    .statistics-card:hover {
         transform: translateY(-5px);
     }
 </style>
@@ -292,16 +345,11 @@ $(document).ready(function() {
             serverSide: true,
             ajax: {
                 url: url,
-                type: 'GET',
-                data: function(d) {
-                    d.view = view;
-                }
+                type: 'GET'
             },
             responsive: true,
             order: [[0, 'desc']],
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-PT.json'
-            },
+            
             columns: [
                 { 
                     data: 'id',
@@ -313,34 +361,30 @@ $(document).ready(function() {
                     render: function(data, type, row) {
                         const initial = data.charAt(0).toUpperCase();
                         return `<div class="d-flex align-items-center">
-                                    
+                                    <div class="shipment-avatar me-3">
+                                        ${initial}
+                                    </div>
                                     <div>
-                                        <div class="fw-medium">${data}</div>
-                                     
+                                        <h6 class="mb-0 guide-number">${data}</h6>
                                     </div>
                                 </div>`;
                     }
                 },
                 { 
                     data: 'date',
-                    render: function(data, type, row) {
-                        if (!data) return '';
-                        
+                    render: function(data) {
                         const date = new Date(data);
                         const today = new Date();
-                        const diffDays = Math.floor((today - date) / (1000 * 60 * 60 * 24));
+                        const isFuture = date > today;
                         
                         let badgeClass = 'bg-light text-dark';
                         let icon = '';
                         
-                        if (diffDays <= 1) {
-                            badgeClass = 'bg-info text-white';
-                            icon = '<i class="fas fa-bolt me-1"></i>';
-                        } else if (diffDays <= 7) {
+                        if (isFuture) {
                             badgeClass = 'bg-warning text-dark';
-                            icon = '<i class="fas fa-clock me-1"></i>';
-                        } else if (date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth()) {
-                            badgeClass = 'bg-primary text-white';
+                            icon = '<i class="fas fa-exclamation-triangle me-1"></i>';
+                        } else if (date.getFullYear() === today.getFullYear()) {
+                            badgeClass = 'bg-info text-white';
                         }
                         
                         return `<span class="badge ${badgeClass} date-badge">
@@ -349,9 +393,27 @@ $(document).ready(function() {
                     }
                 },
                 { 
+                    data: 'status',
+                    className: 'text-center',
+                    render: function(data) {
+                        let badgeClass = 'bg-warning';
+                        let icon = '<i class="fas fa-times-circle me-1"></i>';
+                        let text = 'Incompleto';
+                        
+                        if (data === 'completo') {
+                            badgeClass = 'bg-success';
+                            icon = '<i class="fas fa-check-circle me-1"></i>';
+                            text = 'Completo';
+                        }
+                        
+                        return `<span class="badge ${badgeClass}">
+                                    ${icon}${text}
+                                </span>`;
+                    }
+                },
+                { 
                     data: 'created_at',
                     render: function(data) {
-                        if (!data) return '';
                         const date = new Date(data);
                         return `<div>
                                     <div>${date.toLocaleDateString('pt-PT')}</div>
@@ -362,21 +424,11 @@ $(document).ready(function() {
                 { 
                     data: 'deleted_at',
                     className: 'text-center',
-                    render: function(data, type, row) {
+                    render: function(data) {
                         if (data) {
                             return `<span class="badge bg-danger">Eliminada</span>`;
                         } else {
-                            const date = new Date(row.date);
-                            const today = new Date();
-                            const diffDays = Math.floor((today - date) / (1000 * 60 * 60 * 24));
-                            
-                            if (diffDays <= 1) {
-                                return `<span class="badge bg-success">Ativa (Hoje)</span>`;
-                            } else if (diffDays <= 7) {
-                                return `<span class="badge bg-success">Ativa (Semana)</span>`;
-                            } else {
-                                return `<span class="badge bg-success">Ativa</span>`;
-                            }
+                            return `<span class="badge bg-success">Ativa</span>`;
                         }
                     }
                 },
@@ -388,7 +440,15 @@ $(document).ready(function() {
                     render: function(data, type, row) {
                         let buttons = '<div class="btn-group btn-group-sm" role="group">';
                         
-                        if (!row.deleted_at) {
+                        // Botão de documentos (sempre visível)
+                        buttons += `<button class="btn btn-outline-info btn-documents"
+                                      data-id="${data}"
+                                      data-guide="${row.guide}"
+                                      title="Ver Documentos">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>`;
+                        
+                        if (currentView === 'active') {
                             buttons += `<button class="btn btn-outline-primary btn-edit"
                                           data-id="${data}"
                                           data-guide="${row.guide}"
@@ -397,6 +457,7 @@ $(document).ready(function() {
                                         <i class="fas fa-edit"></i>
                                     </button>`;
                             
+                            // Only show delete button for admins
                             if (isAdmin) {
                                 buttons += `<button class="btn btn-outline-danger btn-delete"
                                             data-id="${data}"
@@ -406,22 +467,21 @@ $(document).ready(function() {
                                     </button>`;
                             }
                         } else {
+                            // Only show restore/force delete for admins
                             if (isAdmin) {
                                 buttons += `<button class="btn btn-outline-success btn-restore"
                                           data-id="${data}"
                                           data-guide="${row.guide}"
                                           title="Restaurar Remessa">
                                         <i class="fas fa-undo"></i>
-                                    </button>`;
-                                
-                                buttons += `<button class="btn btn-outline-danger btn-force-delete"
+                                    </button>
+                                    
+                                    <button class="btn btn-outline-danger btn-force-delete"
                                             data-id="${data}"
                                             data-guide="${row.guide}"
                                             title="Eliminar Permanentemente">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>`;
-                            } else {
-                                buttons = '<small class="text-muted">Apenas admin</small>';
                             }
                         }
                         
@@ -430,10 +490,6 @@ $(document).ready(function() {
                     }
                 }
             ],
-            createdRow: function(row, data, dataIndex) {
-                // Add ID to row for easy reference
-                $(row).attr('id', 'shipment-' + data.id);
-            },
             initComplete: function() {
                 // Add search functionality
                 $('#tableSearch').on('keyup', function() {
@@ -449,7 +505,7 @@ $(document).ready(function() {
     // Toggle form visibility
     $('#toggleForm').click(function() {
         resetForm();
-        $('#formTitle').html('<i class="fas fa-shipping-fast me-2"></i>Adicionar Nova Remessa');
+        $('#formTitle').html('<i class="fas fa-truck me-2"></i>Adicionar Nova Remessa');
         $('#shipmentFormCard').slideToggle('fast', function() {
             if ($(this).is(':visible')) {
                 $('#toggleForm').html('<i class="fas fa-times me-2"></i>Fechar Formulário');
@@ -484,143 +540,22 @@ $(document).ready(function() {
         }
     });
     
-    // Show statistics modal
-    $('#btnStatistics').click(function() {
-        $('#statisticsModal').modal('show');
-        loadStatistics();
-    });
-    
     // Show report modal
     $('#btnReport').click(function() {
         $('#reportModal').modal('show');
         resetReport();
     });
     
-    // Load statistics
-    function loadStatistics() {
-        $.ajax({
-            url: "{{ route('shipments.statistics') }}",
-            method: 'GET',
-            dataType: 'json',
-            success: function(response) {
-                if (response.success && response.statistics) {
-                    const stats = response.statistics;
-                    
-                    const statsHtml = `
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-primary text-white">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Total Remessas</h6>
-                                                <h2 class="mb-0">${stats.total}</h2>
-                                            </div>
-                                            <i class="fas fa-box fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-success text-white">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Hoje</h6>
-                                                <h2 class="mb-0">${stats.today}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar-day fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-info text-white">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Esta Semana</h6>
-                                                <h2 class="mb-0">${stats.this_week}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar-week fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-warning text-dark">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Este Mês</h6>
-                                                <h2 class="mb-0">${stats.this_month}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar-alt fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-secondary text-white">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Mês Anterior</h6>
-                                                <h2 class="mb-0">${stats.last_month}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-danger text-white">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Últimos 7 Dias</h6>
-                                                <h2 class="mb-0">${stats.recent}</h2>
-                                            </div>
-                                            <i class="fas fa-clock fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    $('#statisticsContent').html(statsHtml);
-                } else {
-                    $('#statisticsContent').html(`
-                        <div class="col-md-12">
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                ${response.message || 'Erro ao carregar estatísticas'}
-                            </div>
-                        </div>
-                    `);
-                }
-            },
-            error: function(xhr) {
-                $('#statisticsContent').html(`
-                    <div class="col-md-12">
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Erro ao carregar estatísticas. Tente novamente.
-                        </div>
-                    </div>
-                `);
-            }
-        });
-    }
+    // Show statistics modal
+    $('#btnStatistics').click(function() {
+        $('#statisticsModal').modal('show');
+        loadStatistics();
+    });
     
     // Date validation for shipment form
     $('#date').on('change', function() {
         const selectedDate = new Date($(this).val());
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
         
         if (selectedDate > today) {
             $(this).addClass('future-date');
@@ -664,10 +599,14 @@ $(document).ready(function() {
         const url = shipmentId ? `/shipments/${shipmentId}` : "{{ route('shipments.store') }}";
         const method = shipmentId ? 'PUT' : 'POST';
         
+        const formData = new FormData(this);
+        
         $.ajax({
             url: url,
             method: method,
-            data: $(this).serialize(),
+            data: formData,
+            processData: false,
+            contentType: false,
             dataType: 'json',
             success: function(response) {
                 Toast.fire({
@@ -724,29 +663,59 @@ $(document).ready(function() {
         const shipmentGuide = $(this).data('guide');
         const shipmentDate = $(this).data('date');
         
-        // Show form
-        $('#shipmentFormCard').slideDown();
-        $('#toggleForm').html('<i class="fas fa-times me-2"></i>Fechar Formulário');
+        // Show loading
+        const button = $(this);
+        button.prop('disabled', true).find('i').addClass('fa-spinner fa-spin');
         
-        // Set form title
-        $('#formTitle').html(`<i class="fas fa-edit me-2"></i>Editar Remessa: ${shipmentGuide}`);
-        
-        // Format date for input field (YYYY-MM-DD)
-        const dateObj = new Date(shipmentDate);
-        const formattedDate = dateObj.toISOString().split('T')[0];
-        
-        // Fill form data
-        $('#shipment_id').val(shipmentId);
-        $('#guide').val(shipmentGuide);
-        $('#date').val(formattedDate);
-        
-        // Validate date
-        $('#date').trigger('change');
-        
-        // Scroll to form
-        $('html, body').animate({
-            scrollTop: $('#shipmentFormCard').offset().top - 20
-        }, 500);
+        // Get shipment data with documents
+        $.ajax({
+            url: `/shipments/${shipmentId}/edit`,
+            method: 'GET',
+            success: function(response) {
+                // Show form
+                $('#shipmentFormCard').slideDown();
+                $('#toggleForm').html('<i class="fas fa-times me-2"></i>Fechar Formulário');
+                
+                // Set form title
+                $('#formTitle').html(`<i class="fas fa-edit me-2"></i>Editar Remessa: ${shipmentGuide}`);
+                
+                // Format date for input field (YYYY-MM-DD)
+                const dateObj = new Date(shipmentDate);
+                const formattedDate = dateObj.toISOString().split('T')[0];
+                
+                // Fill form data
+                $('#shipment_id').val(shipmentId);
+                $('#guide').val(shipmentGuide);
+                $('#date').val(formattedDate);
+                
+                // Show existing documents
+                previewDocuments(response.data.documents);
+                
+                // Validate date
+                $('#date').trigger('change');
+                
+                // Scroll to form
+                $('html, body').animate({
+                    scrollTop: $('#shipmentFormCard').offset().top - 20
+                }, 500);
+            },
+            error: function() {
+                Toast.fire({
+                    icon: 'error',
+                    title: 'Erro ao carregar dados da remessa'
+                });
+            },
+            complete: function() {
+                button.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin');
+            }
+        });
+    });
+    
+    // Show documents modal
+    $(document).on('click', '.btn-documents', function() {
+        const shipmentId = $(this).data('id');
+        const shipmentGuide = $(this).data('guide');
+        showDocuments(shipmentId, shipmentGuide);
     });
     
     // Delete shipment (soft delete) - only for admins
@@ -963,34 +932,21 @@ $(document).ready(function() {
             data: $(this).serialize(),
             dataType: 'json',
             success: function(response) {
-                if (response.success && response.data && response.data.length > 0) {
+                if (response.data.length > 0) {
                     // Populate table
                     response.data.forEach(function(shipment) {
                         const date = new Date(shipment.date);
                         const created = new Date(shipment.created_at);
-                        const today = new Date();
-                        const diffDays = Math.floor((today - date) / (1000 * 60 * 60 * 24));
-                        
-                        let statusBadge = 'bg-secondary';
-                        let statusText = 'Antiga';
-                        
-                        if (diffDays <= 1) {
-                            statusBadge = 'bg-info';
-                            statusText = 'Hoje';
-                        } else if (diffDays <= 7) {
-                            statusBadge = 'bg-warning';
-                            statusText = 'Esta Semana';
-                        } else if (diffDays <= 30) {
-                            statusBadge = 'bg-primary';
-                            statusText = 'Este Mês';
-                        }
+                        const statusBadge = shipment.status === 'completo' ? 
+                            '<span class="badge bg-success">Completo</span>' : 
+                            '<span class="badge bg-warning">Incompleto</span>';
                         
                         $('#reportTable tbody').append(`
                             <tr>
                                 <td><strong>${shipment.guide}</strong></td>
                                 <td>${date.toLocaleDateString('pt-PT')}</td>
+                                <td>${statusBadge}</td>
                                 <td>${created.toLocaleDateString('pt-PT')}</td>
-                                <td><span class="badge ${statusBadge}">${statusText}</span></td>
                             </tr>
                         `);
                     });
@@ -1032,16 +988,350 @@ $(document).ready(function() {
         });
     });
     
-    // Reset form
+    // Load statistics
+    function loadStatistics() {
+        $.ajax({
+            url: "{{ route('shipments.statistics') }}",
+            method: 'GET',
+            success: function(response) {
+                const stats = response.statistics;
+                
+                let html = `
+                <div class="row g-3">
+                    <div class="col-6 col-md-4">
+                        <div class="card statistics-card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h2 class="mb-0">${stats.total}</h2>
+                                <p class="mb-0"><small>Total de Remessas</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="card statistics-card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h2 class="mb-0">${stats.today}</h2>
+                                <p class="mb-0"><small>Hoje</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="card statistics-card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h2 class="mb-0">${stats.this_week}</h2>
+                                <p class="mb-0"><small>Esta Semana</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="card statistics-card bg-warning">
+                            <div class="card-body text-center">
+                                <h2 class="mb-0">${stats.this_month}</h2>
+                                <p class="mb-0"><small>Este Mês</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="card statistics-card bg-secondary text-white">
+                            <div class="card-body text-center">
+                                <h2 class="mb-0">${stats.last_month}</h2>
+                                <p class="mb-0"><small>Mês Passado</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="card statistics-card bg-dark text-white">
+                            <div class="card-body text-center">
+                                <h2 class="mb-0">${stats.recent}</h2>
+                                <p class="mb-0"><small>Últimos 7 Dias</small></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+                
+                $('#statisticsContent').html(html);
+            },
+            error: function() {
+                $('#statisticsContent').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Erro ao carregar estatísticas
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Upload new documents
+    $('#uploadDocumentsForm').submit(function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const shipmentId = $('#modalShipmentId').val();
+        
+        $.ajax({
+            url: `/shipments/${shipmentId}/documents`,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                Toast.fire({
+                    icon: 'success',
+                    title: response.message
+                });
+                loadDocuments(shipmentId);
+                table.ajax.reload();
+                $('#uploadDocumentsForm')[0].reset();
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    Toast.fire({
+                        icon: 'error',
+                        title: 'Erro de validação nos ficheiros'
+                    });
+                } else {
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.message || 'Erro ao carregar documentos'
+                    });
+                }
+            }
+        });
+    });
+    
+    // Remove document from edit form
+    $(document).on('click', '.btn-remove-existing-doc', function() {
+        const docId = $(this).data('id');
+        const docName = $(this).closest('.d-flex').find('span').text();
+        
+        Swal.fire({
+            title: 'Remover Documento',
+            html: `Tem certeza que deseja remover <strong>${docName}</strong>?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, remover',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed && isAdmin) {
+                $.ajax({
+                    url: `/shipments/documents/${docId}`,
+                    method: 'DELETE',
+                    success: function() {
+                        Toast.fire({
+                            icon: 'success',
+                            title: 'Documento removido com sucesso!'
+                        });
+                        // Remove from preview
+                        $(this).closest('.d-flex').remove();
+                        // Update status in table
+                        table.ajax.reload();
+                    }.bind(this),
+                    error: function(xhr) {
+                        if (xhr.status === 403) {
+                            Toast.fire({
+                                icon: 'error',
+                                title: 'Apenas administradores podem remover documentos'
+                            });
+                        } else {
+                            Toast.fire({
+                                icon: 'error',
+                                title: xhr.responseJSON?.message || 'Erro ao remover documento'
+                            });
+                        }
+                    }
+                });
+            } else if (!isAdmin) {
+                Toast.fire({
+                    icon: 'warning',
+                    title: 'Apenas administradores podem remover documentos'
+                });
+            }
+        });
+    });
+    
+    // Evento para remover documento (no modal de documentos)
+    $(document).on('click', '.btn-remove-doc', function() {
+        const docId = $(this).data('id');
+        const docName = $(this).data('name');
+        const shipmentId = $('#modalShipmentId').val();
+        
+        Swal.fire({
+            title: 'Remover Documento',
+            html: `Tem certeza que deseja remover <strong>${docName}</strong>?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, remover',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: `/shipments/documents/${docId}`,
+                    method: 'DELETE',
+                    success: function(response) {
+                        Toast.fire({
+                            icon: 'success',
+                            title: response.message
+                        });
+                        // Recarregar lista de documentos
+                        loadDocuments(shipmentId);
+                        // Atualizar tabela para refletir mudança de status
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        if (xhr.status === 403) {
+                            Toast.fire({
+                                icon: 'error',
+                                title: 'Apenas administradores podem remover documentos'
+                            });
+                        } else {
+                            Toast.fire({
+                                icon: 'error',
+                                title: xhr.responseJSON?.message || 'Erro ao remover documento'
+                            });
+                        }
+                    }
+                });
+            }
+        });
+    });
+    
+    // Functions
+    function showDocuments(shipmentId, shipmentGuide) {
+        $('#modalShipmentId').val(shipmentId);
+        $('#modalShipmentGuide').text(shipmentGuide);
+        
+        // Only show upload card for admins
+        if (!isAdmin) {
+            $('#uploadNewCard').hide();
+        } else {
+            $('#uploadNewCard').show();
+        }
+        
+        loadDocuments(shipmentId);
+        $('#documentsModal').modal('show');
+    }
+    
+    function loadDocuments(shipmentId) {
+        $.ajax({
+            url: `/shipments/${shipmentId}/documents`,
+            method: 'GET',
+            success: function(response) {
+                let html = '';
+                
+                if (response.data.length > 0) {
+                    html += '<h6 class="mb-3">Documentos Anexados</h6>';
+                    html += '<div class="list-group">';
+                    
+                    response.data.forEach(function(doc) {
+                        const sizeMB = (doc.size / (1024*1024)).toFixed(2);
+                        const icon = getFileIcon(doc.mime_type);
+                        
+                        html += `
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <i class="${icon} fa-lg me-3 text-primary"></i>
+                                    <div>
+                                        <h6 class="mb-1">${doc.original_name}</h6>
+                                        <small class="text-muted">
+                                            ${doc.mime_type} • ${sizeMB} MB
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="/shipments/documents/${doc.id}/download" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       target="_blank">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    ${isAdmin ? 
+                                        `<button class="btn btn-sm btn-outline-danger btn-remove-doc"
+                                           data-id="${doc.id}"
+                                           data-name="${doc.original_name}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>` : ''
+                                    }
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                } else {
+                    html += `
+                    <div class="text-center py-4">
+                        <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                        <p class="text-muted mb-0">Nenhum documento anexado</p>
+                    </div>`;
+                }
+                
+                $('#documentsList').html(html);
+            },
+            error: function() {
+                $('#documentsList').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Erro ao carregar documentos
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    function getFileIcon(mimeType) {
+        if (mimeType.includes('pdf')) return 'fas fa-file-pdf';
+        if (mimeType.includes('image')) return 'fas fa-file-image';
+        if (mimeType.includes('word') || mimeType.includes('document')) return 'fas fa-file-word';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'fas fa-file-excel';
+        return 'fas fa-file';
+    }
+    
+    function previewDocuments(documents) {
+        let html = '';
+        
+        if (documents && documents.length > 0) {
+            html += '<div class="card"><div class="card-body"><h6>Documentos Existentes</h6>';
+            
+            documents.forEach(function(doc) {
+                const icon = getFileIcon(doc.mime_type);
+                
+                html += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex align-items-center">
+                        <i class="${icon} me-2"></i>
+                        <span>${doc.original_name}</span>
+                    </div>
+                    <div>
+                        <a href="/shipments/documents/${doc.id}/download" 
+                           class="btn btn-sm btn-outline-primary"
+                           target="_blank">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        ${isAdmin ? 
+                            `<button class="btn btn-sm btn-outline-danger btn-remove-existing-doc"
+                               data-id="${doc.id}">
+                                <i class="fas fa-times"></i>
+                            </button>` : ''
+                        }
+                    </div>
+                </div>`;
+            });
+            
+            html += '</div></div>';
+        }
+        
+        $('#documentsPreview').html(html);
+    }
+    
     function resetForm() {
         $('#shipmentForm')[0].reset();
         $('#shipment_id').val('');
         $('.is-invalid').removeClass('is-invalid');
         $('.invalid-feedback').text('');
         $('#date').removeClass('future-date');
+        $('#documentsPreview').empty();
     }
     
-    // Reset report
     function resetReport() {
         $('#reportForm')[0].reset();
         $('#reportResults').hide();

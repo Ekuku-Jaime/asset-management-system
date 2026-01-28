@@ -23,13 +23,13 @@ class InvoiceController extends Controller
      */
     private $allowedMimes = [
         'pdf', 'jpg', 'jpeg', 'png', 
-        'doc', 'docx', 'xls', 'xlsx'
+        'doc', 'docx'
     ];
     
     /**
-     * Tamanho máximo (10MB)
+     * Tamanho máximo (19MB)
      */
-    private $maxFileSize = 10240;
+    private $maxFileSize = 20480;
 
     /**
      * Verificar se o usuário tem permissão de admin

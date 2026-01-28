@@ -133,6 +133,19 @@ Route::middleware(['auth'])->prefix('shipments')->group(function () {
     Route::get('/search', [ShipmentController::class, 'search'])->name('shipments.search');
     Route::post('/report', [ShipmentController::class, 'report'])->name('shipments.report');
     Route::get('/statistics', [ShipmentController::class, 'statistics'])->name('shipments.statistics');
+    
+    // Document routes
+    Route::post('/{shipment}/documents', [ShipmentController::class, 'uploadDocuments'])
+        ->name('shipments.documents.upload');
+        
+    Route::delete('/documents/{document}', [ShipmentController::class, 'removeDocument'])
+        ->name('shipments.documents.destroy');
+        
+    Route::get('/documents/{document}/download', [ShipmentController::class, 'downloadDocument'])
+        ->name('shipments.documents.download');
+        
+    Route::get('/{shipment}/documents', [ShipmentController::class, 'listDocuments'])
+        ->name('shipments.documents.index');
 });
 
 // Requests Routes
@@ -150,6 +163,7 @@ Route::middleware(['auth'])->prefix('requests')->group(function () {
     Route::post('/report', [RequestController::class, 'report'])->name('requests.report');
     Route::get('/statistics', [RequestController::class, 'statistics'])->name('requests.statistics');
     Route::get('/generate-code', [RequestController::class, 'generateCode'])->name('requests.generate-code');
+    Route::get('/by-project/{projectId}', [RequestController::class, 'byProject'])->name('requests.by-project');
 });
 // Auth::routes();
 

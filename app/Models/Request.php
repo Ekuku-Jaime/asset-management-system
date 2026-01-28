@@ -12,13 +12,21 @@ class Request extends Model
 
     protected $table = 'requests';
     
-    protected $fillable = ['code', 'date', 'type', 'description'];
+    protected $fillable = ['code', 'date', 'type', 'description', 'project_id'];
     
     protected $dates = ['date', 'deleted_at'];
     
     protected $casts = [
         'date' => 'date',
     ];
+    
+    /**
+     * Relacionamento com Project
+     */
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
     
     /**
      * Validar que a data não é futura
@@ -72,5 +80,13 @@ class Request extends Model
     public function scopeRecent($query, $days = 7)
     {
         return $query->where('date', '>=', now()->subDays($days));
+    }
+    
+    /**
+     * Escopo para requisições de um projeto específico
+     */
+    public function scopeForProject($query, $projectId)
+    {
+        return $query->where('project_id', $projectId);
     }
 }

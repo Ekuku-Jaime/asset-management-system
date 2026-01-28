@@ -77,7 +77,19 @@
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-12 mb-3">
+                        <div class="col-md-6 mb-3">
+                            <label for="project_id" class="form-label">Projeto (Opcional)</label>
+                            <select class="form-select" id="project_id" name="project_id">
+                                <option value="">Selecione um projeto</option>
+                                @foreach($projects as $project)
+                                    <option value="{{ $project->id }}">{{ $project->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="invalid-feedback" id="project_id-error"></div>
+                            <small class="text-muted">Associar a um projeto existente</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
                             <label for="description" class="form-label">Descrição</label>
                             <textarea class="form-control" id="description" name="description" 
                                       rows="3" placeholder="Descrição da requisição..."></textarea>
@@ -155,6 +167,18 @@
                                 </div>
                             </div>
                             
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label for="report_project_id" class="form-label">Projeto</label>
+                                    <select class="form-select" id="report_project_id" name="project_id">
+                                        <option value="">Todos os projetos</option>
+                                        @foreach($projects as $project)
+                                            <option value="{{ $project->id }}">{{ $project->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                            
                             <div class="d-flex justify-content-end gap-2">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                     Cancelar
@@ -178,6 +202,7 @@
                                             <th>Código</th>
                                             <th>Data</th>
                                             <th>Tipo</th>
+                                            <th>Projeto</th>
                                             <th>Descrição</th>
                                         </tr>
                                     </thead>
@@ -212,6 +237,18 @@
                         <button type="button" class="btn btn-outline-warning" id="btnFilterExternal">
                             <i class="fas fa-external-link-alt me-1"></i> Externas
                         </button>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-success dropdown-toggle" type="button" id="filterProjectDropdown" data-bs-toggle="dropdown">
+                                <i class="fas fa-project-diagram me-1"></i> Projeto
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="filterProjectDropdown">
+                                <li><a class="dropdown-item" href="#" data-project-id="">Todos os Projetos</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                @foreach($projects as $project)
+                                <li><a class="dropdown-item" href="#" data-project-id="{{ $project->id }}">{{ $project->name }}</a></li>
+                                @endforeach
+                            </ul>
+                        </div>
                     </div>
                     
                     <div class="d-flex gap-2">
@@ -233,6 +270,7 @@
                                 <th>Requisição</th>
                                 <th>Data</th>
                                 <th>Tipo</th>
+                                <th>Projeto</th>
                                 <th>Descrição</th>
                                 <th>Registada em</th>
                                 <th>Estado</th>
@@ -314,6 +352,11 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
+    
+    .project-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
 </style>
 @endpush
 
@@ -322,11 +365,12 @@
 $(document).ready(function() {
     let currentView = 'active';
     let currentFilter = 'all';
+    let currentProjectId = '';
     let table;
     const isAdmin = {{ auth()->user()->isAdmin() ? 'true' : 'false' }};
     
     // Initialize DataTable
-    function initializeTable(view = 'active', filter = 'all') {
+    function initializeTable(view = 'active', filter = 'all', projectId = '') {
         if ($.fn.DataTable.isDataTable('#requestsTable')) {
             table.destroy();
         }
@@ -344,6 +388,7 @@ $(document).ready(function() {
                 data: function(d) {
                     d.view = view;
                     d.filter = filter;
+                    d.project_id = projectId;
                 }
             },
             responsive: true,
@@ -402,12 +447,22 @@ $(document).ready(function() {
                 { 
                     data: 'type',
                     render: function(data) {
-                        if (data === 'Interna') {
-                            return `<span class="badge type-badge-internal">${data}</span>`;
-                        } else if (data === 'Externa') {
-                            return `<span class="badge type-badge-external">${data}</span>`;
+                        if (data === 'internal') {
+                            return `<span class="badge type-badge-internal">Interna</span>`;
+                        } else if (data === 'external') {
+                            return `<span class="badge type-badge-external">Externa</span>`;
                         }
                         return data;
+                    }
+                },
+                { 
+                    data: 'project_id',
+                    render: function(data, type, row) {
+                        if (row.project) {
+                            return `<span class="badge bg-info project-badge">${row.project.name}</span>`;
+                        } else {
+                            return '<span class="badge bg-secondary project-badge">Sem Projeto</span>';
+                        }
                     }
                 },
                 { 
@@ -452,8 +507,9 @@ $(document).ready(function() {
                                           data-id="${data}"
                                           data-code="${row.code}"
                                           data-date="${row.date}"
-                                          data-type="${row.type === 'Interna' ? 'internal' : 'external'}"
+                                          data-type="${row.type}"
                                           data-description="${row.description || ''}"
+                                          data-project-id="${row.project_id || ''}"
                                           title="Editar Requisição">
                                         <i class="fas fa-edit"></i>
                                     </button>`;
@@ -503,7 +559,7 @@ $(document).ready(function() {
     }
     
     // Initialize with active requests
-    initializeTable('active', 'all');
+    initializeTable('active', 'all', '');
     
     // Toggle form visibility
     $('#toggleForm').click(function() {
@@ -549,7 +605,7 @@ $(document).ready(function() {
             currentView = 'active';
             $(this).addClass('active').removeClass('btn-outline-primary').addClass('btn-primary');
             $('#btnInactive').removeClass('active btn-primary').addClass('btn-outline-secondary');
-            initializeTable('active', currentFilter);
+            initializeTable('active', currentFilter, currentProjectId);
         }
     });
     
@@ -558,7 +614,7 @@ $(document).ready(function() {
             currentView = 'inactive';
             $(this).addClass('active').removeClass('btn-outline-secondary').addClass('btn-primary');
             $('#btnActive').removeClass('active btn-primary').addClass('btn-outline-primary');
-            initializeTable('inactive', currentFilter);
+            initializeTable('inactive', currentFilter, currentProjectId);
         }
     });
     
@@ -568,12 +624,11 @@ $(document).ready(function() {
             currentFilter = 'internal';
             $(this).addClass('active').removeClass('btn-outline-info').addClass('btn-info text-white');
             $('#btnFilterExternal').removeClass('active btn-warning').addClass('btn-outline-warning');
-            $('#btnAll').removeClass('active btn-secondary').addClass('btn-outline-secondary');
-            initializeTable(currentView, 'internal');
+            initializeTable(currentView, 'internal', currentProjectId);
         } else {
             currentFilter = 'all';
             $(this).removeClass('active btn-info text-white').addClass('btn-outline-info');
-            initializeTable(currentView, 'all');
+            initializeTable(currentView, 'all', currentProjectId);
         }
     });
     
@@ -582,13 +637,29 @@ $(document).ready(function() {
             currentFilter = 'external';
             $(this).addClass('active').removeClass('btn-outline-warning').addClass('btn-warning text-dark');
             $('#btnFilterInternal').removeClass('active btn-info').addClass('btn-outline-info');
-            $('#btnAll').removeClass('active btn-secondary').addClass('btn-outline-secondary');
-            initializeTable(currentView, 'external');
+            initializeTable(currentView, 'external', currentProjectId);
         } else {
             currentFilter = 'all';
             $(this).removeClass('active btn-warning text-dark').addClass('btn-outline-warning');
-            initializeTable(currentView, 'all');
+            initializeTable(currentView, 'all', currentProjectId);
         }
+    });
+    
+    // Project filter dropdown
+    $('.dropdown-item[data-project-id]').click(function(e) {
+        e.preventDefault();
+        const projectId = $(this).data('project-id');
+        currentProjectId = projectId;
+        
+        // Update dropdown button text
+        if (projectId) {
+            const projectName = $(this).text();
+            $('#filterProjectDropdown').html(`<i class="fas fa-project-diagram me-1"></i> ${projectName}`);
+        } else {
+            $('#filterProjectDropdown').html(`<i class="fas fa-project-diagram me-1"></i> Projeto`);
+        }
+        
+        initializeTable(currentView, currentFilter, projectId);
     });
     
     // Show statistics modal
@@ -633,6 +704,37 @@ $(document).ready(function() {
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
+                                                <h6 class="card-title mb-0">Com Projeto</h6>
+                                                <h2 class="mb-0">${stats.with_project}</h2>
+                                            </div>
+                                            <i class="fas fa-project-diagram fa-2x opacity-50"></i>
+                                        </div>
+                                        <div class="mt-2 small">
+                                            ${stats.with_project_percentage}% do total
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card stat-card bg-secondary text-white">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="card-title mb-0">Sem Projeto</h6>
+                                                <h2 class="mb-0">${stats.without_project}</h2>
+                                            </div>
+                                            <i class="fas fa-times-circle fa-2x opacity-50"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="card stat-card bg-success text-white">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
                                                 <h6 class="card-title mb-0">Internas</h6>
                                                 <h2 class="mb-0">${stats.internal}</h2>
                                             </div>
@@ -660,10 +762,8 @@ $(document).ready(function() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-3 mb-3">
-                                <div class="card stat-card bg-success text-white">
+                            <div class="col-md-4 mb-3">
+                                <div class="card stat-card bg-danger text-white">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
@@ -675,8 +775,10 @@ $(document).ready(function() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-3 mb-3">
-                                <div class="card stat-card bg-secondary text-white">
+                                <div class="card stat-card bg-info text-white">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
@@ -689,7 +791,7 @@ $(document).ready(function() {
                                 </div>
                             </div>
                             <div class="col-md-3 mb-3">
-                                <div class="card stat-card bg-danger text-white">
+                                <div class="card stat-card bg-primary text-white">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
@@ -710,6 +812,19 @@ $(document).ready(function() {
                                                 <h2 class="mb-0">${stats.recent}</h2>
                                             </div>
                                             <i class="fas fa-clock fa-2x opacity-50"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card stat-card bg-secondary text-white">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="card-title mb-0">Mês Passado</h6>
+                                                <h2 class="mb-0">${stats.last_month}</h2>
+                                            </div>
+                                            <i class="fas fa-history fa-2x opacity-50"></i>
                                         </div>
                                     </div>
                                 </div>
@@ -851,6 +966,7 @@ $(document).ready(function() {
         const requestDate = $(this).data('date');
         const requestType = $(this).data('type');
         const requestDescription = $(this).data('description');
+        const requestProjectId = $(this).data('project-id');
         
         // Show form
         $('#requestFormCard').slideDown();
@@ -869,6 +985,7 @@ $(document).ready(function() {
         $('#date').val(formattedDate);
         $('#type').val(requestType);
         $('#description').val(requestDescription);
+        $('#project_id').val(requestProjectId || '');
         
         // Validate date
         $('#date').trigger('change');
@@ -1101,11 +1218,16 @@ $(document).ready(function() {
                             ? '<span class="badge type-badge-internal">Interna</span>'
                             : '<span class="badge type-badge-external">Externa</span>';
                         
+                        let projectBadge = request.project 
+                            ? `<span class="badge bg-info project-badge">${request.project.name}</span>`
+                            : '<span class="badge bg-secondary project-badge">Sem Projeto</span>';
+                        
                         $('#reportTable tbody').append(`
                             <tr>
                                 <td><strong>${request.code}</strong></td>
                                 <td>${date.toLocaleDateString('pt-PT')}</td>
                                 <td>${typeBadge}</td>
+                                <td>${projectBadge}</td>
                                 <td>${request.description || '-'}</td>
                             </tr>
                         `);
@@ -1124,6 +1246,9 @@ $(document).ready(function() {
                         <small class="mt-1">
                             <i class="fas fa-building me-1"></i> Internas: ${response.stats.internal} | 
                             <i class="fas fa-external-link-alt me-1"></i> Externas: ${response.stats.external}
+                            <br>
+                            <i class="fas fa-project-diagram me-1"></i> Com Projeto: ${response.stats.with_project} | 
+                            <i class="fas fa-times-circle me-1"></i> Sem Projeto: ${response.stats.without_project}
                         </small>
                     `);
                     

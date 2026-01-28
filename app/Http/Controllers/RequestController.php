@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Request as RequestModel;
+use App\Models\Project;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
+use Carbon\Carbon;
 
 class RequestController extends Controller
 {
@@ -28,75 +31,124 @@ class RequestController extends Controller
      */
     public function index()
     {
-        return view('requests.index');
+        $projects = Project::all();
+        return view('requests.index', compact('projects'));
     }
 
-    /**
-     * Retornar dados para DataTable (ativas)
-     */
-    public function data(HttpRequest $request)
-    {
-        $query = RequestModel::query();
-        
-        // Check if we want trashed items
-        if ($request->has('view') && $request->view === 'inactive') {
-            $query = RequestModel::onlyTrashed();
-        }
-        
-        return DataTables::eloquent($query)
-            ->addColumn('actions', function($request) {
-                return '';
-            })
-            ->editColumn('type', function($request) {
-                if ($request->type == 'internal') {
-                    return '<span class="badge bg-primary">Interna</span>';
-                } else {
-                    return '<span class="badge bg-warning text-dark">Externa</span>';
-                }
-            })
-            ->editColumn('date', function($request) {
-                return $request->date->format('Y-m-d');
-            })
-            ->editColumn('created_at', function($request) {
-                return $request->created_at->format('Y-m-d H:i:s');
-            })
-            ->editColumn('deleted_at', function($request) {
-                return $request->deleted_at ? $request->deleted_at->format('Y-m-d H:i:s') : null;
-            })
-            ->rawColumns(['actions', 'type'])
-            ->make(true);
+   /**
+ * Retornar dados para DataTable (ativas)
+ */
+/**
+ * Retornar dados para DataTable (ativas)
+ */
+public function data(HttpRequest $request)
+{
+    $query = RequestModel::with(['project' => function($query) {
+        $query->withTrashed()->select('id', 'name', 'deleted_at');
+    }])->select([
+        'id', 'code', 'date', 'type', 'description', 
+        'project_id', 'created_at', 'deleted_at'
+    ]);
+    
+    // Check if we want trashed items
+    if ($request->has('view') && $request->view === 'inactive') {
+        $query = RequestModel::onlyTrashed()->with(['project' => function($query) {
+            $query->withTrashed()->select('id', 'name', 'deleted_at');
+        }])->select([
+            'id', 'code', 'date', 'type', 'description', 
+            'project_id', 'created_at', 'deleted_at'
+        ]);
     }
-
-    /**
-     * Retornar dados eliminados para DataTable
-     */
-    public function dataTrashed(HttpRequest $request)
-    {
-        $query = RequestModel::onlyTrashed();
-        
-        return DataTables::eloquent($query)
-            ->addColumn('actions', function($request) {
-                return '';
-            })
-            ->editColumn('type', function($request) {
-                if ($request->type == 'internal') {
-                    return 'Interna';
-                } else {
-                    return 'Externa';
-                }
-            })
-            ->editColumn('date', function($request) {
-                return $request->date->format('Y-m-d');
-            })
-            ->editColumn('created_at', function($request) {
-                return $request->created_at->format('Y-m-d H:i:s');
-            })
-            ->editColumn('deleted_at', function($request) {
-                return $request->deleted_at ? $request->deleted_at->format('Y-m-d H:i:s') : null;
-            })
-            ->rawColumns(['actions'])
-            ->make(true);
+    
+    // Filter by project if specified
+    if ($request->has('project_id') && $request->project_id) {
+        $query->where('project_id', $request->project_id);
     }
+    
+    // Filter by type if specified
+    if ($request->has('type') && $request->type) {
+        $query->where('type', $request->type);
+    }
+    
+    return DataTables::eloquent($query)
+        ->addColumn('actions', function($request) {
+            return '';
+        })
+        ->editColumn('project_id', function($request) {
+            if ($request->relationLoaded('project') && $request->project) {
+                if ($request->project->trashed()) {
+                    return '<span class="badge bg-danger" title="Projeto eliminado">
+                                <i class="fas fa-trash me-1"></i>' . e($request->project->name) . '
+                            </span>';
+                } else {
+                    return '<span class="badge bg-info">' . e($request->project->name) . '</span>';
+                }
+            }
+            return '<span class="badge bg-secondary">Sem Projeto</span>';
+        })
+        ->editColumn('type', function($request) {
+            if ($request->type == 'internal') {
+                return '<span class="badge bg-primary">Interna</span>';
+            } else {
+                return '<span class="badge bg-warning text-dark">Externa</span>';
+            }
+        })
+        ->editColumn('date', function($request) {
+            return $request->date ? $request->date->format('Y-m-d') : '';
+        })
+        ->editColumn('description', function($request) {
+            return $request->description ?: '';
+        })
+        ->editColumn('created_at', function($request) {
+            return $request->created_at ? $request->created_at->format('Y-m-d H:i:s') : '';
+        })
+        ->editColumn('deleted_at', function($request) {
+            return $request->deleted_at ? $request->deleted_at->format('Y-m-d H:i:s') : null;
+        })
+        ->rawColumns(['actions', 'type', 'project_id'])
+        ->make(true);
+}
+/**
+ * Retornar dados eliminados para DataTable
+ */
+public function dataTrashed(HttpRequest $request)
+{
+    $query = RequestModel::onlyTrashed()->with(['project' => function($query) {
+        $query->withTrashed();
+    }]);
+    
+    return DataTables::eloquent($query)
+        ->addColumn('actions', function($request) {
+            return '';
+        })
+        ->editColumn('project_id', function($request) {
+            if ($request->project) {
+                return $request->project->trashed() 
+                    ? '<span class="text-danger"><i class="fas fa-trash me-1"></i>' . e($request->project->name) . '</span>'
+                    : e($request->project->name);
+            } else {
+                return 'Sem Projeto';
+            }
+        })
+        ->editColumn('type', function($request) {
+            if ($request->type == 'internal') {
+                return 'Interna';
+            } else {
+                return 'Externa';
+            }
+        })
+        ->editColumn('date', function($request) {
+            return $request->date->format('Y-m-d');
+        })
+        ->editColumn('created_at', function($request) {
+            return $request->created_at->format('Y-m-d H:i:s');
+        })
+        ->editColumn('deleted_at', function($request) {
+            return $request->deleted_at ? $request->deleted_at->format('Y-m-d H:i:s') : null;
+        })
+        ->rawColumns(['actions', 'project_id'])
+        ->make(true);
+}
 
     /**
      * Criar nova requisição
@@ -112,6 +164,7 @@ class RequestController extends Controller
             ],
             'type' => 'required|in:internal,external',
             'description' => 'nullable|string|max:500',
+            'project_id' => 'nullable|exists:projects,id',
         ], [
             'code.required' => 'O código da requisição é obrigatório.',
             'code.unique' => 'Este código já está registado.',
@@ -122,6 +175,7 @@ class RequestController extends Controller
             'type.required' => 'O tipo de requisição é obrigatório.',
             'type.in' => 'O tipo deve ser Interna ou Externa.',
             'description.max' => 'A descrição não pode ter mais de 500 caracteres.',
+            'project_id.exists' => 'O projeto selecionado não existe.',
         ]);
 
         if ($validator->fails()) {
@@ -132,12 +186,17 @@ class RequestController extends Controller
         }
 
         try {
+            DB::beginTransaction();
+
             $req = RequestModel::create([
                 'code' => $request->code,
                 'date' => $request->date,
                 'type' => $request->type,
                 'description' => $request->description,
+                'project_id' => $request->project_id,
             ]);
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
@@ -146,6 +205,7 @@ class RequestController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao criar requisição: ' . $e->getMessage()
@@ -160,7 +220,7 @@ class RequestController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => $request
+            'data' => $request->load('project')
         ]);
     }
 
@@ -178,6 +238,7 @@ class RequestController extends Controller
             ],
             'type' => 'required|in:internal,external',
             'description' => 'nullable|string|max:500',
+            'project_id' => 'nullable|exists:projects,id',
         ], [
             'code.required' => 'O código da requisição é obrigatório.',
             'code.unique' => 'Este código já está registado.',
@@ -188,6 +249,7 @@ class RequestController extends Controller
             'type.required' => 'O tipo de requisição é obrigatório.',
             'type.in' => 'O tipo deve ser Interna ou Externa.',
             'description.max' => 'A descrição não pode ter mais de 500 caracteres.',
+            'project_id.exists' => 'O projeto selecionado não existe.',
         ]);
 
         if ($validator->fails()) {
@@ -198,12 +260,17 @@ class RequestController extends Controller
         }
 
         try {
+            DB::beginTransaction();
+
             $request->update([
                 'code' => $httpRequest->code,
                 'date' => $httpRequest->date,
                 'type' => $httpRequest->type,
                 'description' => $httpRequest->description,
+                'project_id' => $httpRequest->project_id,
             ]);
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
@@ -211,6 +278,7 @@ class RequestController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao atualizar requisição: ' . $e->getMessage()
@@ -333,6 +401,7 @@ class RequestController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'type' => 'nullable|in:internal,external',
+            'project_id' => 'nullable|exists:projects,id',
         ]);
 
         if ($validator->fails()) {
@@ -343,10 +412,15 @@ class RequestController extends Controller
         }
 
         try {
-            $query = RequestModel::whereBetween('date', [$request->start_date, $request->end_date]);
+            $query = RequestModel::with('project')
+                ->whereBetween('date', [$request->start_date, $request->end_date]);
             
             if ($request->type) {
                 $query->where('type', $request->type);
+            }
+            
+            if ($request->project_id) {
+                $query->where('project_id', $request->project_id);
             }
             
             $requests = $query->orderBy('date', 'desc')->get();
@@ -362,6 +436,8 @@ class RequestController extends Controller
                 'stats' => [
                     'internal' => $requests->where('type', 'internal')->count(),
                     'external' => $requests->where('type', 'external')->count(),
+                    'with_project' => $requests->whereNotNull('project_id')->count(),
+                    'without_project' => $requests->whereNull('project_id')->count(),
                 ]
             ]);
 
@@ -390,6 +466,8 @@ class RequestController extends Controller
                 ->count();
             $internal = RequestModel::internal()->count();
             $external = RequestModel::external()->count();
+            $withProject = RequestModel::whereNotNull('project_id')->count();
+            $withoutProject = RequestModel::whereNull('project_id')->count();
 
             return response()->json([
                 'success' => true,
@@ -400,8 +478,11 @@ class RequestController extends Controller
                     'this_month' => $thisMonth,
                     'internal' => $internal,
                     'external' => $external,
+                    'with_project' => $withProject,
+                    'without_project' => $withoutProject,
                     'internal_percentage' => $total > 0 ? round(($internal / $total) * 100, 1) : 0,
                     'external_percentage' => $total > 0 ? round(($external / $total) * 100, 1) : 0,
+                    'with_project_percentage' => $total > 0 ? round(($withProject / $total) * 100, 1) : 0,
                     'last_month' => RequestModel::whereMonth('date', now()->subMonth()->month)
                         ->whereYear('date', now()->subMonth()->year)
                         ->count(),
@@ -434,6 +515,31 @@ class RequestController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao gerar código: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obter requisições por projeto
+     */
+    public function byProject($projectId)
+    {
+        try {
+            $project = Project::findOrFail($projectId);
+            $requests = $project->requests()->with('project')->orderBy('date', 'desc')->get();
+
+            return response()->json([
+                'success' => true,
+                'project' => $project,
+                'requests' => $requests,
+                'count' => $requests->count(),
+                'statistics' => $project->requests_count
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao obter requisições do projeto: ' . $e->getMessage()
             ], 500);
         }
     }

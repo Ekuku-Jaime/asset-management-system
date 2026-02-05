@@ -11,6 +11,7 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\Auth\ActivationController;
 use App\Http\Controllers\RequestController;
+use App\Http\Controllers\AssetController;
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -167,6 +168,60 @@ Route::middleware(['auth'])->prefix('requests')->group(function () {
 });
 // Auth::routes();
 
+
+// Rotas de Activos
+// Rotas de Activos
+// Rotas de Activos
+// ========== ROTAS ESPECÍFICAS (DEVEM VIR ANTES) ==========
+
+
+// ========== ROUTE RESOURCE (DEVEM VIR DEPOIS) ==========
+
+
+// Rota principal
+Route::get('assets', [AssetController::class, 'index'])->name('assets.index');
+
+Route::prefix('assets')->name('assets.')->group(function () {
+    // DataTables
+    Route::get('datatable', [AssetController::class, 'datatable'])->name('datatable');
+    
+    // Estatísticas
+    Route::get('stats', [AssetController::class, 'stats'])->name('stats');
+    
+    // Exportação
+    Route::post('export', [AssetController::class, 'export'])->name('export');
+    
+    // Ações em massa
+    Route::post('bulk-action', [AssetController::class, 'bulkAction'])->name('bulk-action');
+    
+    // Documentos
+    Route::get('{asset}/documents', [AssetController::class, 'listDocuments'])->name('documents');
+    Route::post('{asset}/documents', [AssetController::class, 'uploadDocuments'])->name('upload-documents');
+    Route::delete('documents/{document}', [AssetController::class, 'removeDocument'])->name('remove-document');
+    Route::get('documents/{document}/download', [AssetController::class, 'downloadDocument'])->name('download-document');
+    
+    // Administração
+    Route::post('{id}/restore', [AssetController::class, 'restore'])->name('restore');
+    Route::delete('{id}/force-delete', [AssetController::class, 'forceDelete'])->name('force-delete');
+    
+    // Ações rápidas
+    Route::get('{asset}/quick-view', [AssetController::class, 'quickView'])->name('quick-view');
+    Route::post('{asset}/assign', [AssetController::class, 'assign'])->name('assign');
+    Route::post('{asset}/remove-assignment', [AssetController::class, 'removeAssignment'])->name('remove-assignment');
+    Route::post('{asset}/process-status', [AssetController::class, 'updateProcessStatus'])->name('process-status');
+    Route::post('{asset}/inoperational', [AssetController::class, 'markInoperational'])->name('inoperational');
+    Route::post('{asset}/write-off', [AssetController::class, 'writeOff'])->name('write-off');
+    
+    // CRUD básico
+    Route::get('create', [AssetController::class, 'create'])->name('create');
+    Route::get('{asset}/edit', [AssetController::class, 'edit'])->name('edit');
+    Route::get('{asset}', [AssetController::class, 'show'])->name('show');
+    Route::post('/', [AssetController::class, 'store'])->name('store');
+    Route::put('{asset}', [AssetController::class, 'update'])->name('update');
+    Route::delete('{asset}', [AssetController::class, 'destroy'])->name('destroy');
+});
+
+// Rotas específicas para DataTables e operações
 
 // Rotas públicas de ativação
 Route::get('/ativar/{token}', [ActivationController::class, 'showActivationForm'])

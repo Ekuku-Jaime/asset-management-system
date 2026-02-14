@@ -12,10 +12,19 @@ use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\Auth\ActivationController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MaintenanceController;
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware('auth')->name('dashboard');
+// Dashboard Routes
+Route::prefix('dashboard')->group(function () {
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/statistics', [DashboardController::class, 'getStatistics'])->name('dashboard.statistics');
+    Route::get('/charts', [DashboardController::class, 'getChartsData'])->name('dashboard.charts');
+    Route::get('/alerts', [DashboardController::class, 'getAlerts'])->name('dashboard.alerts');
+    Route::get('/financial', [DashboardController::class, 'getFinancialSummary'])->name('dashboard.financial');
+    Route::get('/kpis', [DashboardController::class, 'getKPISummary'])->name('dashboard.kpis');
+    Route::get('/timeline', [DashboardController::class, 'getProjectTimeline'])->name('dashboard.timeline');
+});
 // Rota para o convite: quando o usuário clicar no link do email
 Route::get('/register/{token}', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.complete');
@@ -50,17 +59,35 @@ Route::middleware(['auth'])->prefix('suppliers')->group(function () {
 
 // Projects Routes
 Route::middleware(['auth'])->prefix('projects')->group(function () {
-    Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
+    
+// DataTables
     Route::get('/data', [ProjectController::class, 'data'])->name('projects.data');
     Route::get('/data/trashed', [ProjectController::class, 'dataTrashed'])->name('projects.data.trashed');
+     // Stats
+    Route::get('/stats', [ProjectController::class, 'getStats'])->name('projects.stats');
+    
+     // Search
+    Route::get('/search', [ProjectController::class, 'search'])->name('projects.search');
+// List views
+    Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
+    Route::get('/{project}', [ProjectController::class, 'show'])->name('projects.show');
+    Route::get('/create', [ProjectController::class, 'create'])->name('projects.create');
+    
+    
+   
+    // CRUD operations
     Route::post('/', [ProjectController::class, 'store'])->name('projects.store');
     Route::get('/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::put('/{project}', [ProjectController::class, 'update'])->name('projects.update');
     Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+    
+    // Soft delete operations
     Route::post('/{id}/restore', [ProjectController::class, 'restore'])->name('projects.restore');
     Route::delete('/{id}/force', [ProjectController::class, 'forceDelete'])->name('projects.force');
-    Route::get('/search', [ProjectController::class, 'search'])->name('projects.search');
+    
+   
 });
+
 
 // Companies Routes
 Route::middleware(['auth'])->prefix('companies')->group(function () {
@@ -219,6 +246,12 @@ Route::prefix('assets')->name('assets.')->group(function () {
     Route::post('/', [AssetController::class, 'store'])->name('store');
     Route::put('{asset}', [AssetController::class, 'update'])->name('update');
     Route::delete('{asset}', [AssetController::class, 'destroy'])->name('destroy');
+
+
+    // Manutenções
+Route::post('{asset}/maintenance', [AssetController::class, 'markMaintenance'])->name('maintenance');
+Route::post('{asset}/complete-maintenance', [AssetController::class, 'completeMaintenance'])->name('complete-maintenance');
+Route::get('{asset}/maintenances', [AssetController::class, 'listMaintenances'])->name('maintenances');
 });
 
 // Rotas específicas para DataTables e operações
@@ -238,3 +271,19 @@ Route::get('/ativacao-sucesso', [ActivationController::class, 'success'])
 Auth::routes(['register' => false]);
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
+
+// Manutenções Routes
+Route::middleware(['auth'])->prefix('maintenances')->group(function () {
+    Route::get('/', [MaintenanceController::class, 'index'])->name('maintenances.index');
+    Route::get('/data', [MaintenanceController::class, 'datatable'])->name('maintenances.datatable');
+    Route::post('/export', [MaintenanceController::class, 'export'])->name('maintenances.export');
+    Route::get('/stats', [MaintenanceController::class, 'stats'])->name('maintenances.stats');
+    Route::post('/bulk-action', [MaintenanceController::class, 'bulkAction'])->name('maintenances.bulk-action');
+    
+    // Individual maintenance operations
+    Route::get('/{maintenance}', [MaintenanceController::class, 'show'])->name('maintenances.show');
+    Route::put('/{maintenance}', [MaintenanceController::class, 'update'])->name('maintenances.update');
+    Route::delete('/{maintenance}', [MaintenanceController::class, 'destroy'])->name('maintenances.destroy');
+    Route::post('/{maintenance}/status', [MaintenanceController::class, 'updateStatus'])->name('maintenances.update-status');
+    Route::post('/{maintenance}/complete', [MaintenanceController::class, 'completeMaintenance'])->name('maintenances.complete');
+});

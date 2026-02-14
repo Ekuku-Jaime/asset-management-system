@@ -5,487 +5,179 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Str;
 
 class AssetMaintenance extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'code', 'name', 'description', 'serial_number', 'brand', 'model', 'barcode',
-        'category', 'asset_status', 'process_status', 'base_value', 'iva_value', 'total_value',
-        'request_id', 'supplier_id', 'invoice_id', 'shipment_id', 'company_id', 'employee_id', 'project_id',
-        'location', 'department', 'purchase_date', 'warranty_expiry', 'last_maintenance',
-        'next_maintenance', 'assignment_date'
+        'asset_id',
+        'maintenance_type',
+        'description',
+        'status',
+        'scheduled_date',
+        'completed_date',
+        'started_date',
+        'estimated_duration',
+        'actual_duration',
+        'cost',
+        'maintenance_provider',
+        'technician_name',
+        'result',
+        'notes'
     ];
     
     protected $dates = [
-        'purchase_date', 'warranty_expiry', 'last_maintenance', 
-        'next_maintenance', 'assignment_date', 'deleted_at'
-    ];
-    
-    protected $casts = [
-        'base_value' => 'decimal:2',
-        'iva_value' => 'decimal:2',
-        'total_value' => 'decimal:2',
+        'scheduled_date',
+        'completed_date',
+        'started_date',
+        'deleted_at'
     ];
     
     protected $attributes = [
-        'asset_status' => 'disponivel',
-        'process_status' => 'incompleto',
-        'category' => 'hardware',
+        'status' => 'agendada'
     ];
     
     /**
-     * Relacionamentos
+     * Relacionamento com Asset
      */
-    public function request()
+    public function asset()
     {
-        return $this->belongsTo(Request::class);
-    }
-    
-    public function supplier()
-    {
-        return $this->belongsTo(Supplier::class);
-    }
-    
-    public function invoice()
-    {
-        return $this->belongsTo(Invoice::class);
-    }
-    
-    public function shipment()
-    {
-        return $this->belongsTo(Shipment::class);
-    }
-    
-    public function company()
-    {
-        return $this->belongsTo(Company::class);
-    }
-    
-    public function employee()
-    {
-        return $this->belongsTo(Employee::class);
-    }
-    
-    public function project()
-    {
-        return $this->belongsTo(Project::class);
-    }
-    
-    /**
-     * Histórico de manutenções
-     */
-    public function maintenances()
-    {
-        return $this->hasMany(AssetMaintenance::class);
-    }
-    
-    /**
-     * Histórico de atribuições
-     */
-    public function assignments()
-    {
-        return $this->hasMany(AssetAssignment::class);
-    }
-    
-    /**
-     * Documentos do ativo
-     */
-    public function documents()
-    {
-        return $this->hasMany(AssetDocument::class);
-    }
-    
-    /**
-     * Boot do model
-     */
-    public static function boot()
-    {
-        parent::boot();
-        
-        // Gerar código automático
-        static::creating(function ($asset) {
-            if (!$asset->code) {
-                $asset->code = self::generateCode();
-            }
-            
-            if (!$asset->barcode) {
-                $asset->barcode = self::generateBarcode();
-            }
-            
-            // Calcular valor total
-            $asset->calculateTotalValue();
-            
-            // Atualizar localização baseada no employee
-            $asset->updateLocationFromEmployee();
-        });
-        
-        static::updating(function ($asset) {
-            // Calcular valor total
-            $asset->calculateTotalValue();
-            
-            // Atualizar localização se employee mudar
-            if ($asset->isDirty('employee_id')) {
-                $asset->updateLocationFromEmployee();
-            }
-            
-            // Atualizar process_status baseado em invoice e shipment
-            $asset->updateProcessStatus();
-        });
-        
-        static::saved(function ($asset) {
-            // Atualizar process_status automaticamente
-            $asset->updateProcessStatus();
-        });
-    }
-    
-    /**
-     * Gerar código automático
-     */
-    public static function generateCode()
-    {
-        $lastAsset = self::withTrashed()->latest()->first();
-        $number = $lastAsset ? intval(substr($lastAsset->code, 4)) + 1 : 1;
-        return 'AST-' . str_pad($number, 6, '0', STR_PAD_LEFT);
-    }
-    
-    /**
-     * Gerar código de barras
-     */
-    public static function generateBarcode()
-    {
-        return 'ASSET-' . time() . '-' . Str::random(6);
-    }
-    
-    /**
-     * Calcular valor total
-     */
-    public function calculateTotalValue()
-    {
-        $this->total_value = $this->base_value + $this->iva_value;
-        return $this->total_value;
-    }
-    
-    /**
-     * Atualizar localização baseada no employee
-     */
-    public function updateLocationFromEmployee()
-    {
-        if ($this->employee && $this->employee->company) {
-            $this->location = $this->employee->company->province;
-        }
-        return $this->location;
-    }
-    
-    /**
-     * Atualizar status do processo
-     */
-    public function updateProcessStatus()
-    {
-        $isInvoiceComplete = !$this->invoice_id || $this->invoice->status === 'completo';
-        $isShipmentComplete = !$this->shipment_id || $this->shipment->status === 'completo';
-        
-        $this->process_status = ($isInvoiceComplete && $isShipmentComplete) 
-            ? 'completo' 
-            : 'incompleto';
-            
-        // Salvar apenas se mudou
-        if ($this->isDirty('process_status')) {
-            $this->saveQuietly();
-        }
-    }
-    
-    /**
-     * Verificar se o processo está completo
-     */
-    public function isProcessComplete()
-    {
-        return $this->process_status === 'completo';
-    }
-    
-    /**
-     * Atribuir ativo a um employee
-     */
-    public function assignToEmployee($employeeId, $assignmentDate = null)
-    {
-        $this->employee_id = $employeeId;
-        $this->asset_status = 'atribuido';
-        $this->assignment_date = $assignmentDate ?: now();
-        $this->save();
-        
-        // Criar registro no histórico
-        AssetAssignment::create([
-            'asset_id' => $this->id,
-            'employee_id' => $employeeId,
-            'assignment_date' => $this->assignment_date,
-            'status' => 'atribuido'
-        ]);
-        
-        return $this;
-    }
-    
-    /**
-     * Liberar ativo (tornar disponível)
-     */
-    public function releaseAsset($releaseDate = null)
-    {
-        $this->employee_id = null;
-        $this->asset_status = 'disponivel';
-        $this->assignment_date = null;
-        $this->save();
-        
-        // Atualizar último assignment
-        $lastAssignment = $this->assignments()->latest()->first();
-        if ($lastAssignment) {
-            $lastAssignment->update([
-                'release_date' => $releaseDate ?: now(),
-                'status' => 'liberado'
-            ]);
-        }
-        
-        return $this;
-    }
-    
-    /**
-     * Enviar para manutenção
-     */
-    public function sendToMaintenance($maintenanceDate = null, $expectedReturn = null)
-    {
-        $this->asset_status = 'manutencao';
-        $this->save();
-        
-        // Criar registro de manutenção
-        AssetMaintenance::create([
-            'asset_id' => $this->id,
-            'maintenance_date' => $maintenanceDate ?: now(),
-            'expected_return' => $expectedReturn,
-            'status' => 'em_andamento'
-        ]);
-        
-        return $this;
-    }
-    
-    /**
-     * Completar manutenção
-     */
-    public function completeMaintenance($returnDate = null, $cost = null, $description = null)
-    {
-        $this->asset_status = 'disponivel';
-        $this->last_maintenance = $returnDate ?: now();
-        $this->save();
-        
-        // Atualizar última manutenção
-        $lastMaintenance = $this->maintenances()->latest()->first();
-        if ($lastMaintenance) {
-            $lastMaintenance->update([
-                'return_date' => $returnDate ?: now(),
-                'cost' => $cost,
-                'description' => $description,
-                'status' => 'completado'
-            ]);
-        }
-        
-        return $this;
-    }
-    
-    /**
-     * Marcar como inoperacional
-     */
-    public function markAsInoperational($reason = null)
-    {
-        $this->asset_status = 'inoperacional';
-        $this->save();
-        
-        // Criar registro
-        AssetMaintenance::create([
-            'asset_id' => $this->id,
-            'maintenance_date' => now(),
-            'description' => $reason ?: 'Marcado como inoperacional',
-            'status' => 'inoperacional'
-        ]);
-        
-        return $this;
-    }
-    
-    /**
-     * Abater ativo
-     */
-    public function writeOff($writeOffDate = null, $reason = null)
-    {
-        $this->asset_status = 'abatido';
-        $this->save();
-        
-        // Criar registro
-        AssetMaintenance::create([
-            'asset_id' => $this->id,
-            'maintenance_date' => $writeOffDate ?: now(),
-            'description' => $reason ?: 'Ativo abatido',
-            'status' => 'abatido'
-        ]);
-        
-        return $this;
+        return $this->belongsTo(Asset::class);
     }
     
     /**
      * Accessors
      */
-    public function getAssetStatusLabelAttribute()
+    public function getMaintenanceTypeLabelAttribute()
     {
         $labels = [
-            'disponivel' => 'Disponível',
-            'atribuido' => 'Atribuído',
-            'manutencao' => 'Em Manutenção',
-            'inoperacional' => 'Inoperacional',
-            'abatido' => 'Abatido'
+            'preventiva' => 'Preventiva',
+            'corretiva' => 'Corretiva',
+            'preditiva' => 'Preditiva'
         ];
         
-        return $labels[$this->asset_status] ?? $this->asset_status;
+        return $labels[$this->maintenance_type] ?? $this->maintenance_type;
     }
     
-    public function getProcessStatusLabelAttribute()
-    {
-        return $this->process_status === 'completo' ? 'Completo' : 'Incompleto';
-    }
-    
-    public function getCategoryLabelAttribute()
+    public function getStatusLabelAttribute()
     {
         $labels = [
-            'hardware' => 'Hardware',
-            'software' => 'Software',
-            'equipamento' => 'Equipamento',
-            'mobiliario' => 'Mobiliário',
-            'veiculo' => 'Veículo',
-            'outro' => 'Outro'
+            'agendada' => 'Agendada',
+            'em_andamento' => 'Em Andamento',
+            'concluida' => 'Concluída',
+            'cancelada' => 'Cancelada'
         ];
         
-        return $labels[$this->category] ?? $this->category;
+        return $labels[$this->status] ?? $this->status;
     }
     
-    public function getFormattedBaseValueAttribute()
+    public function getResultLabelAttribute()
     {
-        return number_format($this->base_value, 2, ',', '.') . ' MT';
+        if (!$this->result) {
+            return null;
+        }
+        
+        $labels = [
+            'concluida' => 'Concluída',
+            'pendente' => 'Pendente',
+            'cancelada' => 'Cancelada'
+        ];
+        
+        return $labels[$this->result] ?? $this->result;
     }
     
-    public function getFormattedIvaValueAttribute()
+    public function getFormattedCostAttribute()
     {
-        return number_format($this->iva_value, 2, ',', '.') . ' MT';
+        return $this->cost ? number_format($this->cost, 2, ',', '.') . ' MT' : null;
     }
     
-    public function getFormattedTotalValueAttribute()
+    public function getIsOverdueAttribute()
     {
-        return number_format($this->total_value, 2, ',', '.') . ' MT';
+        return $this->status !== 'concluida' && 
+               $this->scheduled_date && 
+               $this->scheduled_date->isPast();
+    }
+    
+    public function getDaysOverdueAttribute()
+    {
+        if (!$this->is_overdue) {
+            return 0;
+        }
+        
+        return $this->scheduled_date->diffInDays(now());
     }
     
     /**
      * Scopes
      */
-    public function scopeAvailable($query)
+    public function scopeScheduled($query)
     {
-        return $query->where('asset_status', 'disponivel');
+        return $query->where('status', 'agendada');
     }
     
-    public function scopeAssigned($query)
+    public function scopeInProgress($query)
     {
-        return $query->where('asset_status', 'atribuido');
+        return $query->where('status', 'em_andamento');
     }
     
-    public function scopeInMaintenance($query)
+    public function scopeCompleted($query)
     {
-        return $query->where('asset_status', 'manutencao');
+        return $query->where('status', 'concluida');
     }
     
-    public function scopeInoperational($query)
+    public function scopeCanceled($query)
     {
-        return $query->where('asset_status', 'inoperacional');
+        return $query->where('status', 'cancelada');
     }
     
-    public function scopeWrittenOff($query)
+    public function scopeOverdue($query)
     {
-        return $query->where('asset_status', 'abatido');
+        return $query->where('status', '!=', 'concluida')
+            ->whereDate('scheduled_date', '<', now());
     }
     
-    public function scopeProcessComplete($query)
+    public function scopePreventive($query)
     {
-        return $query->where('process_status', 'completo');
+        return $query->where('maintenance_type', 'preventiva');
     }
     
-    public function scopeProcessIncomplete($query)
+    public function scopeCorrective($query)
     {
-        return $query->where('process_status', 'incompleto');
+        return $query->where('maintenance_type', 'corretiva');
     }
     
-    public function scopeByCategory($query, $category)
+    public function scopePredictive($query)
     {
-        return $query->where('category', $category);
+        return $query->where('maintenance_type', 'preditiva');
     }
     
-    public function scopeByLocation($query, $location)
+    public function scopeForAsset($query, $assetId)
     {
-        return $query->where('location', $location);
-    }
-    
-    public function scopeByCompany($query, $companyId)
-    {
-        return $query->where('company_id', $companyId);
-    }
-    
-    public function scopeByEmployee($query, $employeeId)
-    {
-        return $query->where('employee_id', $employeeId);
-    }
-    
-    public function scopeByProject($query, $projectId)
-    {
-        return $query->where('project_id', $projectId);
+        return $query->where('asset_id', $assetId);
     }
     
     /**
-     * Verificar se tem warranty válida
+     * Calcular diferença entre duração estimada e real
      */
-    public function hasValidWarranty()
+    public function getDurationDifferenceAttribute()
     {
-        if (!$this->warranty_expiry) {
-            return false;
+        if (!$this->estimated_duration || !$this->actual_duration) {
+            return null;
         }
         
-        return $this->warranty_expiry > now();
+        return $this->actual_duration - $this->estimated_duration;
     }
     
     /**
-     * Verificar se precisa de manutenção
+     * Verificar se está dentro do prazo
      */
-    public function needsMaintenance()
+    public function getIsOnTimeAttribute()
     {
-        if (!$this->next_maintenance) {
-            return false;
+        if (!$this->actual_duration || !$this->estimated_duration) {
+            return null;
         }
         
-        return $this->next_maintenance <= now()->addDays(30);
-    }
-    
-    /**
-     * Verificar se está atribuído
-     */
-    public function isAssigned()
-    {
-        return $this->asset_status === 'atribuido' && $this->employee_id !== null;
-    }
-    
-    /**
-     * Obter employee atual
-     */
-    public function getCurrentAssignment()
-    {
-        return $this->assignments()->latest()->first();
-    }
-    
-    /**
-     * Obter manutenção atual
-     */
-    public function getCurrentMaintenance()
-    {
-        return $this->maintenances()->whereIn('status', ['em_andamento', 'agendado'])->latest()->first();
+        return $this->actual_duration <= $this->estimated_duration;
     }
 }

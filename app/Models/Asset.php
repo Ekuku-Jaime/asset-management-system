@@ -14,7 +14,7 @@ class Asset extends Model
         'code', 'name', 'description', 'serial_number', 'brand', 'model',
         'category', 'asset_status', 'process_status', 'incomplete_reason',
         'total_value', 'base_value', 'iva_value',
-        'request_id', 'supplier_id', 'invoice_id',
+        'request_id', 'supplier_id', 'invoice_id', 'shipment_id',
         'employee_id', 'location', 'department', 'warranty_expiry',
         'last_maintenance', 'next_maintenance', 'assignment_date'
     ];
@@ -48,7 +48,8 @@ class Asset extends Model
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
     }
-     public function shipment()
+    
+    public function shipment()
     {
         return $this->belongsTo(Shipment::class, 'shipment_id');
     }
@@ -68,10 +69,10 @@ class Asset extends Model
         return $this->hasOneThrough(
             Project::class,
             Request::class,
-            'id',
-            'id',
-            'request_id',
-            'project_id'
+            'id', // Foreign key on requests table
+            'id', // Foreign key on projects table
+            'request_id', // Local key on assets table
+            'project_id' // Local key on requests table
         );
     }
     
@@ -80,10 +81,10 @@ class Asset extends Model
         return $this->hasOneThrough(
             Company::class,
             Employee::class,
-            'id',
-            'id',
-            'employee_id',
-            'company_id'
+            'id', // Foreign key on employees table
+            'id', // Foreign key on companies table
+            'employee_id', // Local key on assets table
+            'company_id' // Local key on employees table
         );
     }
     
@@ -309,12 +310,12 @@ class Asset extends Model
     
     public function getFormattedWarrantyExpiryAttribute()
     {
-        return $this->warranty_expiry ? $this->warranty_expiry : '-';
+        return $this->warranty_expiry ? $this->warranty_expiry->format('d/m/Y') : '-';
     }
     
     public function getFormattedAssignmentDateAttribute()
     {
-        return $this->assignment_date ? $this->assignment_date : '-';
+        return $this->assignment_date ? $this->assignment_date->format('d/m/Y') : '-';
     }
     
     /**

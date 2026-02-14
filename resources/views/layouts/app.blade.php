@@ -647,6 +647,42 @@
         #sidebar-wrapper.expanded .sidebar-link[data-bs-toggle="tooltip"]:hover::after {
             display: none;
         }
+
+        .sidebar-logo {
+    position: relative;
+    min-width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-logo-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+#sidebar-wrapper:hover .sidebar-logo-img,
+#sidebar-wrapper.expanded .sidebar-logo-img {
+    max-width: 120%;
+    max-height: 120%;
+}
+
+.sidebar-logo-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+}
+
+.sidebar-logo-fallback .logo-icon {
+    font-size: 1.75rem;
+    color: #60a5fa;
+}
     </style>
 
     @stack('styles')
@@ -669,9 +705,21 @@
             <div class="sidebar-content">
                 <!-- Sidebar Header -->
                 <div class="sidebar-heading">
-                    <i class="fas fa-boxes logo-icon"></i>
-                    <span class="sidebar-logo-text">Asset Manager</span>
-                </div>
+    <!-- Logo como imagem com fallback para ícone -->
+    <div class="sidebar-logo">
+        <!-- Imagem do logo (coloque o caminho da sua imagem) -->
+        <img src="{{ asset('images/logo.png') }}" 
+             alt="Asset Management Logo" 
+             class="sidebar-logo-img"
+             onerror="this.style.display='none'; document.querySelector('.sidebar-logo-fallback').style.display='flex';">
+        
+        <!-- Fallback para quando não há imagem -->
+        {{-- <div class="sidebar-logo-fallback">
+            <i class="fas fa-boxes logo-icon"></i>
+        </div> --}}
+    </div>
+    <span class="sidebar-logo-text">Asset Manager - MTL</span>
+</div>
 
                 <!-- Sidebar Menu -->
                 <div class="sidebar-menu">
@@ -743,7 +791,7 @@
 
                     <!-- Manutenções -->
                     <div class="sidebar-item">
-                        <a href="#"
+                        <a href="{{ route('maintenances.index') }}"
                             class="sidebar-link {{ request()->routeIs('maintenances.*') ? 'active' : '' }}"
                             data-bs-toggle="tooltip" title="Manutenções">
                             <i class="fas fa-tools"></i>
@@ -758,14 +806,14 @@
                     </div>
 
                     <!-- Relatórios -->
-                    <div class="sidebar-item">
+                    {{-- <div class="sidebar-item">
                         <a href="#"
                             class="sidebar-link {{ request()->routeIs('reports.*') ? 'active' : '' }}"
                             data-bs-toggle="tooltip" title="Relatórios">
                             <i class="fas fa-chart-bar"></i>
                             <span>Relatórios</span>
                         </a>
-                    </div>
+                    </div> --}}
 
                     <!-- Utilizadores -->
                     <div class="sidebar-item">
@@ -784,29 +832,29 @@
                     </div>
 
                     <!-- Configurações -->
-                    <div class="sidebar-item">
+                    {{-- <div class="sidebar-item">
                         <a href="#"
                             class="sidebar-link {{ request()->routeIs('settings.*') ? 'active' : '' }}"
                             data-bs-toggle="tooltip" title="Configurações">
                             <i class="fas fa-cog"></i>
                             <span>Configurações</span>
                         </a>
-                    </div>
+                    </div> --}}
 
                     <!-- Divider -->
-                    <div class="sidebar-item mt-4">
+                    {{-- <div class="sidebar-item mt-4">
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 1rem 0;"></div>
-                    </div>
+                    </div> --}}
 
                     <!-- Ajuda -->
-                    <div class="sidebar-item">
+                    {{-- <div class="sidebar-item">
                         <a href="#"
                             class="sidebar-link"
                             data-bs-toggle="tooltip" title="Ajuda">
                             <i class="fas fa-question-circle"></i>
                             <span>Ajuda</span>
                         </a>
-                    </div>
+                    </div> --}}
 
                     <!-- Spacer for scroll -->
                     <div style="height: 20px;"></div>

@@ -665,7 +665,7 @@
                             </div>
                             
                             <div class="row">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="assetCategory" class="form-label required">Categoria</label>
                                     <select class="form-select" id="assetCategory" name="category" required>
                                         <option value="">Selecione uma categoria</option>
@@ -679,16 +679,16 @@
                                     <div class="invalid-feedback" id="category-error"></div>
                                 </div>
                                 
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="serialNumber" class="form-label">Número de Série</label>
                                     <input type="text" class="form-control" id="serialNumber" name="serial_number"
                                            placeholder="Número de série do activo">
                                 </div>
                                 
-                                <div class="col-md-4 mb-3">
+                                {{-- <div class="col-md-4 mb-3">
                                     <label for="purchaseDate" class="form-label">Data de Aquisição</label>
                                     <input type="date" class="form-control" id="purchaseDate" name="purchase_date">
-                                </div>
+                                </div> --}}
                             </div>
                             
                             <div class="row">
@@ -714,7 +714,7 @@
                                     <div class="input-group">
                                         <span class="input-group-text">MT</span>
                                         <input type="number" class="form-control" id="baseValue" name="base_value" 
-                                               step="0.01" min="0" required placeholder="0.00">
+                                               step="0.01" min="0" required placeholder="0.00" readonly>
                                     </div>
                                     <div class="invalid-feedback" id="base_value-error"></div>
                                 </div>
@@ -724,7 +724,7 @@
                                     <div class="input-group">
                                         <span class="input-group-text">MT</span>
                                         <input type="number" class="form-control" id="ivaValue" name="iva_value" 
-                                               step="0.01" min="0" required placeholder="0.00">
+                                               step="0.01" min="0" required placeholder="0.00" readonly>
                                     </div>
                                     <div class="invalid-feedback" id="iva_value-error"></div>
                                 </div>
@@ -756,7 +756,7 @@
                                 
                                 <div class="col-md-6 mb-3">
                                     <label for="assetInvoice" class="form-label">Factura</label>
-                                    <select class="form-select select2" id="assetInvoice" name="invoice_id">
+                                    <select class="form-select select2" required id="assetInvoice" name="invoice_id">
                                         <option value="">Selecione uma factura</option>
                                         @foreach($invoices as $invoice)
                                             <option value="{{ $invoice->id }}">{{ $invoice->number }} - {{ $invoice->supplier->name ?? '' }}</option>
@@ -768,7 +768,7 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="assetRequest" class="form-label">Requisição</label>
-                                    <select class="form-select select2" id="assetRequest" name="request_id">
+                                    <select class="form-select select2" required id="assetRequest" name="request_id">
                                         <option value="">Selecione uma requisição</option>
                                         @foreach($requests as $req)
                                             <option value="{{ $req->id }}">{{ $req->code }} - {{ $req->project->name ?? 'N/A' }}</option>
@@ -778,10 +778,10 @@
                                 
                                 <div class="col-md-6 mb-3">
                                     <label for="assetShipment" class="form-label">Remessa</label>
-                                    <select class="form-select select2" id="assetShipment" name="shipment_id">
+                                    <select class="form-select select2" required id="assetShipment" name="shipment_id">
                                         <option value="">Selecione uma remessa</option>
                                         @foreach($shipments as $shipment)
-                                            <option value="{{ $shipment->id }}">{{ $shipment->tracking_number }} - {{ $shipment->supplier->name ?? '' }}</option>
+                                            <option value="{{ $shipment->id }}">{{ $shipment->guide }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -817,11 +817,7 @@
                                            placeholder="Departamento do activo">
                                 </div>
                                 
-                                <div class="col-md-6 mb-3">
-                                    <label for="assetLocation" class="form-label">Localização</label>
-                                    <input type="text" class="form-control" id="assetLocation" name="location"
-                                           placeholder="Localização física do activo">
-                                </div>
+                               
                             </div>
                         </div>
                         
@@ -990,11 +986,17 @@
             <th width="120">Valor Base</th>
             <th width="120">IVA</th>
             <th width="120">Valor Total</th>
-            <th width="150">Empresa Colab.</th>
+            <th width="100">Projecto</th>
+            <th width="150">Colaborador</th>
+            <th width="150">Institu. Colab.</th>
             <th width="120">Fornecedor</th>
             <th width="120">Factura</th>
             <th width="120">Requisição</th>
+            <th width="100">Tipo Requisição</th>
+            <th width="100">Data Requisição</th>
             <th width="120">Remessa</th>
+            <th width="120">Data Remessa</th>
+            <th width="120">Estado do Processo</th>
             <th width="120">Garantia</th>
             <th width="100">Documentos</th>
             <th width="200" class="text-center fixed-last-column">Ações</th>
@@ -1026,6 +1028,130 @@
             title="Novo Activo">
         <i class="fas fa-plus"></i>
     </button>
+</div>
+
+<!-- Modal de Manutenção -->
+<div class="modal fade" id="maintenanceModal" tabindex="-1" aria-labelledby="maintenanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="maintenanceModalLabel">Marcar para Manutenção</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="maintenanceForm">
+                <div class="modal-body">
+                    <input type="hidden" id="maintenanceAssetId" name="asset_id">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label for="maintenanceType" class="form-label required">Tipo de Manutenção</label>
+                        <select class="form-select" id="maintenanceType" name="maintenance_type" required>
+                            <option value="">Selecione o tipo</option>
+                            <option value="preventiva">Preventiva</option>
+                            <option value="corretiva">Corretiva</option>
+                            <option value="preditiva">Preditiva</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="maintenanceDescription" class="form-label required">Descrição</label>
+                        <textarea class="form-control" id="maintenanceDescription" 
+                                  name="maintenance_description" rows="3" required
+                                  placeholder="Descreva o problema ou a manutenção necessária"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="estimatedDuration" class="form-label">Duração Estimada (dias)</label>
+                            <input type="number" class="form-control" id="estimatedDuration" 
+                                   name="estimated_duration" min="1" placeholder="Ex: 7">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="maintenanceProvider" class="form-label">Fornecedor/Prestador</label>
+                            <input type="text" class="form-control" id="maintenanceProvider" 
+                                   name="maintenance_provider" placeholder="Nome do prestador">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="maintenanceNotes" class="form-label">Observações Adicionais</label>
+                        <textarea class="form-control" id="maintenanceNotes" 
+                                  name="notes" rows="2" placeholder="Observações extras"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Marcar para Manutenção</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Conclusão de Manutenção -->
+<div class="modal fade" id="completeMaintenanceModal" tabindex="-1" aria-labelledby="completeMaintenanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="completeMaintenanceModalLabel">Concluir Manutenção</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="completeMaintenanceForm">
+                <div class="modal-body">
+                    <input type="hidden" id="completeMaintenanceAssetId" name="asset_id">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-3">
+                        <label for="maintenanceId" class="form-label required">Manutenção</label>
+                        <select class="form-select" id="maintenanceId" name="maintenance_id" required>
+                            <option value="">Selecione a manutenção</option>
+                            <!-- Carregado via AJAX -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="maintenanceResult" class="form-label required">Resultado</label>
+                        <select class="form-select" id="maintenanceResult" name="result" required>
+                            <option value="concluida">Concluída com Sucesso</option>
+                            <option value="pendente">Pendente/Incompleta</option>
+                            <option value="cancelada">Cancelada</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="actualDuration" class="form-label">Duração Real (dias)</label>
+                            <input type="number" class="form-control" id="actualDuration" 
+                                   name="actual_duration" min="1" placeholder="Duração real">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="maintenanceCost" class="form-label">Custo (MT)</label>
+                            <input type="number" class="form-control" id="maintenanceCost" 
+                                   name="cost" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="technicianName" class="form-label">Técnico Responsável</label>
+                        <input type="text" class="form-control" id="technicianName" 
+                               name="technician_name" placeholder="Nome do técnico">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="completionNotes" class="form-label">Observações Finais</label>
+                        <textarea class="form-control" id="completionNotes" 
+                                  name="notes" rows="3" placeholder="Observações da conclusão"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Concluir Manutenção</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- Modal de Atribuição -->
@@ -1300,13 +1426,27 @@ function initializeDataTable() {
             url: '{{ route("assets.datatable") }}',
             data: function(d) {
                 d.quick_filter = $('.quick-filter.active').data('filter') || 'all';
+                
+            
             },
             dataSrc: function(json) {
-                if (json.stats) {
-                    updateStats(json.stats);
+                try {
+                    if (json && json.stats) {
+                        updateStats(json.stats);
+                    }
+                } catch (e) {
+                    console.error('Error updating stats:', e);
+                } finally {
+                    hideLoading();
                 }
-                hideLoading();
-                return json.data;
+                // Always return an array to DataTables to avoid errors when json.data is missing
+                if (json && Array.isArray(json.data)) {
+                    return json.data;
+                }
+                if (json && json.data) {
+                    return json.data;
+                }
+                return [];
             },
             error: function(xhr, error, thrown) {
                 hideLoading();
@@ -1396,6 +1536,21 @@ function initializeDataTable() {
                     return data ? formatCurrency(data) : '--';
                 }
             },
+            // Projecto
+            {
+                data: 'project_name',
+                width: '150px',
+                render: function(data, type, row) {
+                    return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
+                }
+            },
+                        {
+                data: 'employee_name',
+                width: '150px',
+                render: function(data, type, row) {
+                    return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
+                }
+            },
             // Empresa do Colaborador
             {
                 data: 'company_name',
@@ -1428,12 +1583,50 @@ function initializeDataTable() {
                     return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
                 }
             },
+            // Tipo Requisição
+            {
+                data: 'request_type',
+                width: '120px',
+                render: function(data, type, row) {
+                    return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
+                }
+            },
+            {
+                data: 'request_date',
+                width: '120px',
+                render: function(data, type, row) {
+                    return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
+                }
+            },
             // Remessa
             {
                 data: 'shipment_tracking',
                 width: '120px',
                 render: function(data, type, row) {
                     return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
+                }
+            },
+            // Data Remessa
+             {
+                data: 'shipment_date',
+                width: '120px',
+                render: function(data, type, row) {
+                    return data ? `<div class="text-truncate" title="${data}">${data}</div>` : '--';
+                }
+            },
+
+            //process status do activo, deve ter cor verde se for completo, amarelo se estiver em manutenção e vermelho se estiver inoperacional
+            {
+                data: 'process_status',
+                width: '120px',
+                render: function(data, type, row) {
+                    if (data === 'completo') {
+                        return `<span class="badge bg-success">${data}</span>`;
+                    } 
+                     else if (data === 'incompleto') {
+                        return `<span class="badge bg-danger">${data}</span>`;
+                    }
+                    return '--';
                 }
             },
             // Garantia
@@ -1578,6 +1771,10 @@ function resetAssetForm() {
     // Limpar erros de validação
     $('.is-invalid').removeClass('is-invalid');
     $('.invalid-feedback').text('');
+
+     $('#baseValue').val('');
+    $('#ivaValue').val('');
+    $('#totalValue').val('');
 }
 
 // ============ EVENT LISTENERS ============
@@ -1598,7 +1795,12 @@ function initializeEventListeners() {
         $('.quick-filter').removeClass('active');
         $(this).addClass('active');
         showLoading();
-        table.draw();
+        // Recarrega os dados enviando os parâmetros ajax (inclui quick_filter)
+        if (table && table.ajax) {
+            table.ajax.reload(null, false);
+        } else {
+            table.draw();
+        }
     });
 
     // Select all checkbox
@@ -1625,6 +1827,16 @@ function initializeEventListeners() {
         width: '100%',
         placeholder: 'Selecione uma opção',
         allowClear: true
+    });
+
+     // Cálculo automático de valores financeiros
+    $('#totalValue').on('input change', function() {
+        calculateFinancialValues();
+    });
+    
+    // Para quando o formulário é preenchido via populateAssetForm
+    $(document).on('form-populated', function() {
+        calculateFinancialValues();
     });
 }
 
@@ -1781,6 +1993,7 @@ function populateAssetForm(asset) {
     // Campos de data
     $('#warrantyEndDate').val(asset.warranty_expiry || '');
     
+    $('#totalValue').val(parseFloat(asset.total_value) || 0);
     // Inicializar Select2 se necessário
     setTimeout(() => {
         // Fornecedor
@@ -1822,7 +2035,16 @@ function populateAssetForm(asset) {
         } else {
             $('#assetEmployee').val('').trigger('change');
         }
+        calculateFinancialValues();
     }, 200);
+
+     // Campos numéricos
+    
+    
+    // ... código existente ...
+    
+    // Calcular valores automaticamente após popular o formulário
+    
 }
 
 // ============ FORM SUBMISSION ============
@@ -1840,6 +2062,8 @@ $('#assetForm').on('submit', function(e) {
     submitText.hide();
     loadingSpinner.show();
     
+       // Remover o atributo readonly temporariamente para permitir o envio
+    $('#baseValue, #ivaValue').prop('readonly', false);
     // Clear previous errors
     $('.is-invalid').removeClass('is-invalid');
     $('.invalid-feedback').text('');
@@ -1911,6 +2135,7 @@ $('#assetForm').on('submit', function(e) {
             submitBtn.prop('disabled', false);
             submitText.show();
             loadingSpinner.hide();
+            $('#baseValue, #ivaValue').prop('readonly', true);
         }
     });
 });
@@ -1968,6 +2193,23 @@ $('#assignForm').on('submit', function(e) {
         }
     });
 });
+function calculateFinancialValues() {
+    const totalValue = parseFloat($('#totalValue').val()) || 0;
+    
+    if (totalValue > 0) {
+        // Calcular IVA (16% do valor total)
+        const ivaValue = totalValue * 0.16;
+        const baseValue = totalValue - ivaValue;
+        
+        // Arredondar para 2 casas decimais
+        $('#ivaValue').val(ivaValue.toFixed(2));
+        $('#baseValue').val(baseValue.toFixed(2));
+    } else {
+        // Limpar campos se o valor total for zero ou vazio
+        $('#ivaValue').val('');
+        $('#baseValue').val('');
+    }
+}
 
 function removeAssignment(id) {
     Swal.fire({
@@ -2010,6 +2252,120 @@ function removeAssignment(id) {
         }
     });
 }
+
+// Funções de Manutenção
+function showMaintenanceModal(id) {
+    $('#maintenanceAssetId').val(id);
+    $('#maintenanceForm')[0].reset();
+    $('#maintenanceModal').modal('show');
+}
+
+function showCompleteMaintenanceModal(id) {
+    $('#completeMaintenanceAssetId').val(id);
+    $('#completeMaintenanceForm')[0].reset();
+    
+    // Carregar manutenções pendentes
+    loadPendingMaintenances(id);
+    $('#completeMaintenanceModal').modal('show');
+}
+
+function loadPendingMaintenances(assetId) {
+    $.ajax({
+        url: `/assets/${assetId}/maintenances`,
+        type: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const select = $('#maintenanceId');
+                select.empty().append('<option value="">Selecione a manutenção</option>');
+                
+                response.data.forEach(maintenance => {
+                    if (maintenance.status === 'agendada') {
+                        const option = new Option(
+                            `${maintenance.maintenance_type} - ${maintenance.description.substring(0, 50)}...`,
+                            maintenance.id
+                        );
+                        select.append(option);
+                    }
+                });
+                
+                if (select.find('option').length === 1) {
+                    select.empty().append('<option value="">Nenhuma manutenção pendente</option>');
+                }
+            }
+        }
+    });
+}
+
+// Submissão do formulário de manutenção
+$('#maintenanceForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = $(this).serialize();
+    const assetId = $('#maintenanceAssetId').val();
+    
+    $.ajax({
+        url: `/assets/${assetId}/maintenance`,
+        type: 'POST',
+        data: formData,
+        success: function(response) {
+            if (response.success) {
+                $('#maintenanceModal').modal('hide');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Activo marcado para manutenção!',
+                    text: response.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                table.ajax.reload();
+                loadStats();
+            }
+        },
+        error: function(xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro',
+                text: xhr.responseJSON?.message || 'Erro ao marcar para manutenção'
+            });
+        }
+    });
+});
+
+// Submissão do formulário de conclusão
+$('#completeMaintenanceForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = $(this).serialize();
+    const assetId = $('#completeMaintenanceAssetId').val();
+    
+    $.ajax({
+        url: `/assets/${assetId}/complete-maintenance`,
+        type: 'POST',
+        data: formData,
+        success: function(response) {
+            if (response.success) {
+                $('#completeMaintenanceModal').modal('hide');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Manutenção concluída!',
+                    text: response.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                table.ajax.reload();
+                loadStats();
+            }
+        },
+        error: function(xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro',
+                text: xhr.responseJSON?.message || 'Erro ao concluir manutenção'
+            });
+        }
+    });
+});
+
 
 // ============ QUICK VIEW FUNCTIONS ============
 

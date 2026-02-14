@@ -27,6 +27,14 @@ class Request extends Model
     {
         return $this->belongsTo(Project::class);
     }
+
+    /**
+     * Relacionamento com Assets
+     */
+    public function assets()
+    {
+        return $this->hasMany(Asset::class, 'request_id');
+    }
     
     /**
      * Validar que a data não é futura
@@ -88,5 +96,45 @@ class Request extends Model
     public function scopeForProject($query, $projectId)
     {
         return $query->where('project_id', $projectId);
+    }
+
+     /**
+     * Accessor para código formatado
+     */
+    public function getFormattedCodeAttribute()
+    {
+        return $this->code;
+    }
+    
+    /**
+     * Accessor para data formatada
+     */
+    public function getFormattedDateAttribute()
+    {
+        return $this->date ? $this->date->format('d/m/Y') : '-';
+    }
+    
+    /**
+     * Verificar se tem ativos associados
+     */
+    public function hasAssets()
+    {
+        return $this->assets()->count() > 0;
+    }
+    
+    /**
+     * Contar ativos associados
+     */
+    public function getAssetsCountAttribute()
+    {
+        return $this->assets()->count();
+    }
+    
+    /**
+     * Valor total dos ativos da requisição
+     */
+    public function getTotalAssetsValueAttribute()
+    {
+        return $this->assets()->sum('total_value');
     }
 }

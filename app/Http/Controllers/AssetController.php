@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetDocument;
+use App\Models\AssetMaintenance;
+use App\Models\AssetAssignment;
 use App\Models\Request as RequestModel;
 use App\Models\Supplier;
 use App\Models\Invoice;
 use App\Models\Employee;
 use App\Models\Shipment;
+use App\Models\Project;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -35,58 +38,187 @@ class AssetController extends Controller
         'outro' => 'Outro'
     ];
 
+    const PROCESS_STATUSES = [
+        'completo' => 'Completo',
+        'incompleto' => 'Incompleto'
+    ];
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        // Carregar todos os dados para os dropdowns
         $data = [
             'asset_statuses' => self::ASSET_STATUSES,
+            'process_statuses' => self::PROCESS_STATUSES,
             'categories' => self::CATEGORIES,
             'suppliers' => Supplier::all(),
             'invoices' => Invoice::all(),
-            'requests' => RequestModel::all(),
+            'requests' => RequestModel::with('project','supplier','shipment')->get(),
             'shipments' => Shipment::all(),
-            'employees' => Employee::with('company')->get()
+            'employees' => Employee::with('company')->get(),
+            'projects' => Project::all()
         ];
 
-        // Passar diretamente para a view (não via JSON)
+       
         return view('assets.index', $data);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        // Este método pode ser removido pois já passamos os dados no index()
-        // Ou mantido para outras funcionalidades
-        return response()->json([
-            'success' => true,
-            'message' => 'Use o modal para criar novo activo'
-        ]);
     }
 
     /**
      * Datatable data
      */
-    public function datatable(HttpRequest $request)
+ public function datatable(HttpRequest $request)
 {
     try {
         $query = Asset::with([
             'employee.company',
-            'supplier',
-            'invoice',
             'request',
             'request.project',
-            'shipment',
-            'documents'
-        ]);
+            'request.supplier',
+            'request.invoice',
+            'request.shipment',
+            'documents',
+            'maintenances'
+        ])->withTrashed($request->has('show_deleted') && $request->show_deleted);
 
-        // ... resto dos filtros existentes ...
+        // Aplicar filtros existentes
+        if ($request->filled('asset_status')) {
+            $query->where('asset_status', $request->asset_status);
+        }
+
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
+        }
+
+        if ($request->filled('request_id')) {
+            $query->where('request_id', $request->request_id);
+        }
+
+        if ($request->filled('project_id')) {
+            $query->whereHas('request', function($q) use ($request) {
+                $q->where('project_id', $request->project_id);
+            });
+        }
+
+        if ($request->filled('employee_id')) {
+            $query->where('employee_id', $request->employee_id);
+        }
+
+        // Filtro temporal pela data de requisição
+        if ($request->filled('date_from')) {
+            $query->whereHas('request', function($q) use ($request) {
+                $q->whereDate('date', '>=', $request->date_from);
+            });
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereHas('request', function($q) use ($request) {
+                $q->whereDate('date', '<=', $request->date_to);
+            });
+        }
+
+        // Filtro de garantia a expirar
+        if ($request->filled('warranty_status')) {
+            $today = now();
+            $thirtyDays = now()->addDays(30);
+            
+            switch($request->warranty_status) {
+                case 'expired':
+                    $query->whereNotNull('warranty_expiry')
+                          ->where('warranty_expiry', '<', $today);
+                    break;
+                case 'expiring':
+                    $query->whereNotNull('warranty_expiry')
+                          ->where('warranty_expiry', '>=', $today)
+                          ->where('warranty_expiry', '<=', $thirtyDays);
+                    break;
+                case 'valid':
+                    $query->whereNotNull('warranty_expiry')
+                          ->where('warranty_expiry', '>', $thirtyDays);
+                    break;
+                case 'none':
+                    $query->whereNull('warranty_expiry');
+                    break;
+            }
+        }
+
+        // Filtro de vida útil
+        if ($request->filled('life_status')) {
+            $today = now();
+            
+            switch($request->life_status) {
+                case 'expired':
+                    $query->whereNotNull('life_date')
+                          ->where('life_date', '<', $today);
+                    break;
+                case 'expiring':
+                    $query->whereNotNull('life_date')
+                          ->where('life_date', '>=', $today)
+                          ->where('life_date', '<=', now()->addMonths(6));
+                    break;
+                case 'valid':
+                    $query->whereNotNull('life_date')
+                          ->where('life_date', '>', now()->addMonths(6));
+                    break;
+            }
+        }
 
         return DataTables::eloquent($query)
+            // Colunas básicas
+            ->addColumn('brand', function($asset) {
+                return $asset->brand ?? '';
+            })
+            ->addColumn('model', function($asset) {
+                return $asset->model ?? '';
+            })
+            ->addColumn('serial_number', function($asset) {
+                return $asset->serial_number ?? '';
+            })
+            ->addColumn('description', function($asset) {
+                return $asset->description ?? '';
+            })
+            ->addColumn('employee_name', function($asset) {
+                return $asset->employee ? $asset->employee->name : '';
+            })
+            ->addColumn('employee_department', function($asset) {
+                return $asset->employee ? $asset->employee->department : '';
+            })
+            ->addColumn('company_name', function($asset) {
+                return $asset->employee && $asset->employee->company ? $asset->employee->company->name : '';
+            })
+            ->addColumn('company_province', function($asset) {
+                return $asset->employee && $asset->employee->company ? $asset->employee->company->province : '';
+            })
+            ->addColumn('supplier_name', function($asset) {
+                return $asset->request && $asset->request->supplier ? $asset->request->supplier->name : '';
+            })
+            ->addColumn('invoice_number', function($asset) {
+                return $asset->request && $asset->request->invoice ? $asset->request->invoice->number : '';
+            })
+            ->addColumn('request_code', function($asset) {
+                return $asset->request ? $asset->request->code : '';
+            })
+            ->addColumn('request_type', function($asset) {
+                return $asset->request ? $asset->request->type : '';
+            })
+            ->addColumn('request_date', function($asset) {
+                return $asset->request && $asset->request->date ? (new \DateTime($asset->request->date))->format('d/m/Y') : '';
+            })
+            ->addColumn('request_status', function($asset) {
+                return $asset->request ? $asset->request->process_status : '';
+            })
+            ->addColumn('shipment_tracking', function($asset) {
+                return $asset->request && $asset->request->shipment ? $asset->request->shipment->guide : '';
+            })
+            ->addColumn('shipment_date', function($asset) {
+                return $asset->request && $asset->request->shipment && $asset->request->shipment->date ? (new \DateTime($asset->request->shipment->date))->format('d/m/Y') : '';
+            })
+            ->addColumn('created_at', function($asset) {
+                return $asset->created_at ? $asset->created_at->format('d/m/Y H:i') : '';
+            })
+            ->addColumn('updated_at', function($asset) {
+                return $asset->updated_at ? $asset->updated_at->format('d/m/Y H:i') : '';
+            })
             ->addColumn('checkbox', function($asset) {
                 return '<input type="checkbox" class="select-checkbox asset-checkbox" data-id="' . $asset->id . '">';
             })
@@ -106,9 +238,37 @@ class AssetController extends Controller
                 return '<span class="badge bg-light text-dark">' . 
                        (self::CATEGORIES[$asset->category] ?? $asset->category) . '</span>';
             })
+            ->addColumn('economic_classifier', function($asset) {
+                return $asset->economic_classifier ?? '<span class="text-muted">-</span>';
+            })
+            ->addColumn('life_status', function($asset) {
+                if (!$asset->life_date) {
+                    return '<span class="badge bg-secondary">Não definida</span>';
+                }
+                
+                try {
+                    $lifeDate = new \DateTime($asset->life_date);
+                    $today = new \DateTime();
+                    
+                    if ($lifeDate < $today) {
+                        return '<span class="badge bg-danger">Expirada</span>';
+                    }
+                    
+                    $interval = $today->diff($lifeDate);
+                    $months = ($interval->y * 12) + $interval->m;
+                    
+                    if ($months <= 6) {
+                        return '<span class="badge bg-warning text-dark">' . $months . ' meses restantes</span>';
+                    }
+                    
+                    return '<span class="badge bg-success">' . $lifeDate->format('d/m/Y') . '</span>';
+                } catch (\Exception $e) {
+                    return '<span class="badge bg-secondary">Inválida</span>';
+                }
+            })
             ->addColumn('warranty_indicator', function($asset) {
                 if (!$asset->warranty_expiry) {
-                    return 'N/A';
+                    return '<span class="badge bg-secondary">N/A</span>';
                 }
                 
                 try {
@@ -116,105 +276,156 @@ class AssetController extends Controller
                     $today = new \DateTime();
                     
                     if ($expiry < $today) {
-                        return '<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Expirada</span>';
+                        return '<span class="badge bg-danger">Expirada</span>';
                     }
                     
                     $interval = $today->diff($expiry);
                     $days = $interval->days;
                     
                     if ($days <= 30) {
-                        return '<span class="text-warning"><i class="fas fa-clock me-1"></i>' . $days . 'd</span>';
+                        return '<span class="badge bg-warning text-dark">' . $days . ' dias</span>';
                     }
                     
-                    return $expiry->format('d/m/Y');
+                    return '<span class="badge bg-success">' . $expiry->format('d/m/Y') . '</span>';
                 } catch (\Exception $e) {
-                    return 'N/A';
+                    return '<span class="badge bg-secondary">Inválida</span>';
                 }
             })
             ->addColumn('documents_count', function($asset) {
-                return $asset->documents ? $asset->documents->count() : 0;
+                $count = $asset->documents ? $asset->documents->count() : 0;
+                return $count;
             })
-            ->addColumn('actions', function($asset) {
-                $buttons = '<div class="action-buttons">';
-                $buttons .= '<button class="btn-action view" onclick="showQuickView(' . $asset->id . ')" title="Ver detalhes"><i class="fas fa-eye"></i></button>';
-                $buttons .= '<button class="btn-action edit" onclick="showEditForm(' . $asset->id . ')" title="Editar"><i class="fas fa-edit"></i></button>';
-                
-                if ($asset->asset_status === 'disponivel') {
-                    $buttons .= '<button class="btn-action assign" onclick="showAssignModal(' . $asset->id . ')" title="Atribuir"><i class="fas fa-user-tag"></i></button>';
+            ->addColumn('maintenances_count', function($asset) {
+                $count = $asset->maintenances ? $asset->maintenances()->where('status', '!=', 'concluida')->count() : 0;
+                if ($count > 0) {
+                    return $count;
                 }
-                
-                if ($asset->asset_status === 'atribuido') {
-                    $buttons .= '<button class="btn-action unassign" onclick="removeAssignment(' . $asset->id . ')" title="Remover atribuição"><i class="fas fa-user-times"></i></button>';
-                }
-                
-                if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'inoperacional'])) {
-                    $buttons .= '<button class="btn-action maintenance" onclick="showMaintenanceModal(' . $asset->id . ')" title="Marcar para manutenção"><i class="fas fa-tools"></i></button>';
-                }
-
-                if ($asset->asset_status === 'manutencao') {
-                    $buttons .= '<button class="btn-action complete-maintenance" onclick="showCompleteMaintenanceModal(' . $asset->id . ')" title="Concluir manutenção"><i class="fas fa-check-circle"></i></button>';
-                }
-                
-                if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao'])) {
-                    $buttons .= '<button class="btn-action inoperational" onclick="markInoperational(' . $asset->id . ')" title="Marcar como inoperacional"><i class="fas fa-exclamation-triangle"></i></button>';
-                }
-                
-                if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao', 'inoperacional'])) {
-                    $buttons .= '<button class="btn-action writeoff" onclick="writeOffAsset(' . $asset->id . ')" title="Abater activo"><i class="fas fa-trash-alt"></i></button>';
-                }
-                
-                $buttons .= '<button class="btn-action delete" onclick="confirmDelete(' . $asset->id . ')" title="Eliminar"><i class="fas fa-trash"></i></button>';
-                $buttons .= '</div>';
-                
-                return $buttons;
+                return '<span class="badge bg-secondary">0</span>';
             })
-            // Colunas existentes (mantendo exatamente os mesmos nomes)
-            ->addColumn('company_name', function($asset) {
-                if ($asset->employee && $asset->employee->company) {
-                    return e($asset->employee->company->name);
+            ->addColumn('request_info', function($asset) {
+                if ($asset->request) {
+                    $status = $asset->request->process_status === 'completo' ? 'success' : 'warning';
+                    return '<div>
+                            <div><strong>' . e($asset->request->code) . '</strong></div>
+                            <small class="text-muted">' . e($asset->request->type ?? 'N/A') . '</small>
+                            <span class="badge bg-' . $status . ' ms-1">' . 
+                            ($asset->request->process_status ?? 'N/A') . '</span>
+                        </div>';
+                }
+                return '<span class="text-muted">N/A</span>';
+            })
+            ->addColumn('project_name', function($asset) {
+                if ($asset->request && $asset->request->project) {
+                    return e($asset->request->project->name);
                 }
                 return 'N/A';
             })
-            ->addColumn('supplier_info', function($asset) {
-                return $asset->supplier ? e($asset->supplier->name) : 'N/A';
+            ->addColumn('employee_info', function($asset) {
+                if ($asset->employee) {
+                    $companyName = $asset->employee->company ? $asset->employee->company->name : 'Sem empresa';
+                    return '<div>
+                            <div>' . e($asset->employee->name) . '</div>
+                            <small class="text-muted">' . e($companyName) . '</small>
+                        </div>';
+                }
+                return '<span class="text-muted">Não atribuído</span>';
             })
-            ->addColumn('invoice_number', function($asset) {
-                return $asset->invoice ? e($asset->invoice->number) : 'N/A';
+            ->addColumn('formatted_values', function($asset) {
+                return '<div>
+                        <div>Base: ' . number_format($asset->base_value, 2, ',', '.') . ' MT</div>
+                        <div>IVA: ' . number_format($asset->iva_value, 2, ',', '.') . ' MT</div>
+                        <div><strong>Total: ' . number_format($asset->total_value, 2, ',', '.') . ' MT</strong></div>
+                    </div>';
             })
-            ->addColumn('request_code', function($asset) {
-                return $asset->request ? e($asset->request->code) : 'N/A';
-            })
-            ->addColumn('request_type', function($asset) {
-                return $asset->request ? e($asset->request->type ?? 'N/A') : 'N/A';
-            })
-            ->addColumn('request_date', function($asset) {
-                return $asset->request ? e($asset->request->date ?? 'N/A') : 'N/A';
-            })
-            ->addColumn('project_name', function($asset) {
-                return $asset->request && $asset->request->project ? e($asset->request->project->name ?? 'N/A') : 'N/A';
-            })
-            ->addColumn('employee_name', function($asset) {
-                return $asset->employee ? e($asset->employee->name ?? 'N/A') : 'N/A';         
-            })
-            ->addColumn('shipment_tracking', function($asset) {
-                return $asset->shipment ? e($asset->shipment->guide) : 'N/A';
-            })
-            ->addColumn('shipment_date', function($asset) {
-                return $asset->shipment ? e($asset->shipment->date) : 'N/A';
-            })
-            ->addColumn('process_status', function($asset) {
-                return $asset->process_status ? e($asset->process_status) : 'N/A';
+            ->addColumn('actions', function($asset) {
+                $buttons = '<div class="action-buttons">';
+                
+                if (!$asset->trashed()) {
+                    $buttons .= '<button class="btn-action view" onclick="showQuickView(' . $asset->id . ')" title="Ver detalhes"><i class="fas fa-eye"></i></button>';
+                    $buttons .= '<button class="btn-action edit" onclick="showEditForm(' . $asset->id . ')" title="Editar"><i class="fas fa-edit"></i></button>';
+                    
+                    if ($asset->asset_status === 'disponivel') {
+                        $buttons .= '<button class="btn-action assign" onclick="showAssignModal(' . $asset->id . ')" title="Atribuir"><i class="fas fa-user-tag"></i></button>';
+                    }
+                    
+                    if ($asset->asset_status === 'atribuido') {
+                        $buttons .= '<button class="btn-action unassign" onclick="removeAssignment(' . $asset->id . ')" title="Remover atribuição"><i class="fas fa-user-times"></i></button>';
+                    }
+                    
+                    if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'inoperacional'])) {
+                        $buttons .= '<button class="btn-action maintenance" onclick="showMaintenanceModal(' . $asset->id . ')" title="Marcar para manutenção"><i class="fas fa-tools"></i></button>';
+                    }
+
+                    if ($asset->asset_status === 'manutencao') {
+                        $buttons .= '<button class="btn-action complete-maintenance" onclick="showCompleteMaintenanceModal(' . $asset->id . ')" title="Concluir manutenção"><i class="fas fa-check-circle"></i></button>';
+                    }
+                    
+                    if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao'])) {
+                        $buttons .= '<button class="btn-action inoperational" onclick="markInoperational(' . $asset->id . ')" title="Marcar como inoperacional"><i class="fas fa-exclamation-triangle"></i></button>';
+                    }
+                    
+                    if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao', 'inoperacional'])) {
+                        $buttons .= '<button class="btn-action writeoff" onclick="writeOffAsset(' . $asset->id . ')" title="Abater activo"><i class="fas fa-trash-alt"></i></button>';
+                    }
+                    
+                    $buttons .= '<button class="btn-action delete" onclick="confirmDelete(' . $asset->id . ')" title="Eliminar"><i class="fas fa-trash"></i></button>';
+                    
+                    // Botão para documentos
+                    $buttons .= '<button class="btn-action documents" onclick="showDocumentsModal(' . $asset->id . ')" title="Documentos"><i class="fas fa-file"></i></button>';
+                    
+                    // Botão para histórico
+                    $buttons .= '<button class="btn-action history" onclick="showHistoryModal(' . $asset->id . ')" title="Histórico"><i class="fas fa-history"></i></button>';
+                } else {
+                    if (auth()->user()->isAdmin()) {
+                        $buttons .= '<button class="btn-action restore" onclick="restoreAsset(' . $asset->id . ')" title="Restaurar"><i class="fas fa-undo"></i></button>';
+                        $buttons .= '<button class="btn-action force-delete" onclick="forceDeleteAsset(' . $asset->id . ')" title="Eliminar permanentemente"><i class="fas fa-trash-alt"></i></button>';
+                    }
+                }
+                
+                $buttons .= '</div>';
+                return $buttons;
             })
             
-            // FILTROS ADICIONAIS - mantendo os existentes e adicionando os que faltam
-            // Filtros existentes
+            // FILTROS PARA PESQUISA - TODAS AS COLUNAS
+            ->filterColumn('brand', function($query, $keyword) {
+                $query->where('brand', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('model', function($query, $keyword) {
+                $query->where('model', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('serial_number', function($query, $keyword) {
+                $query->where('serial_number', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('description', function($query, $keyword) {
+                $query->where('description', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('employee_name', function($query, $keyword) {
+                $query->whereHas('employee', function($q) use ($keyword) {
+                    $q->where('name', 'like', "%{$keyword}%");
+                });
+            })
+            ->filterColumn('employee_department', function($query, $keyword) {
+                $query->whereHas('employee', function($q) use ($keyword) {
+                    $q->where('department', 'like', "%{$keyword}%");
+                });
+            })
             ->filterColumn('company_name', function($query, $keyword) {
                 $query->whereHas('employee.company', function($q) use ($keyword) {
                     $q->where('name', 'like', "%{$keyword}%");
                 });
             })
+            ->filterColumn('company_province', function($query, $keyword) {
+                $query->whereHas('employee.company', function($q) use ($keyword) {
+                    $q->where('province', 'like', "%{$keyword}%");
+                });
+            })
+            ->filterColumn('supplier_name', function($query, $keyword) {
+                $query->whereHas('request.supplier', function($q) use ($keyword) {
+                    $q->where('name', 'like', "%{$keyword}%");
+                });
+            })
             ->filterColumn('invoice_number', function($query, $keyword) {
-                $query->whereHas('invoice', function($q) use ($keyword) {
+                $query->whereHas('request.invoice', function($q) use ($keyword) {
                     $q->where('number', 'like', "%{$keyword}%");
                 });
             })
@@ -223,153 +434,226 @@ class AssetController extends Controller
                     $q->where('code', 'like', "%{$keyword}%");
                 });
             })
-            ->filterColumn('shipment_tracking', function($query, $keyword) {
-                $query->whereHas('shipment', function($q) use ($keyword) {
-                    $q->where('guide', 'like', "%{$keyword}%");
-                });
-            })
-            
-            // NOVOS FILTROS - para as colunas que já existem mas não tinham filtro
-            ->filterColumn('supplier_info', function($query, $keyword) {
-                $query->whereHas('supplier', function($q) use ($keyword) {
-                    $q->where('name', 'like', "%{$keyword}%");
-                });
-            })
             ->filterColumn('request_type', function($query, $keyword) {
                 $query->whereHas('request', function($q) use ($keyword) {
                     $q->where('type', 'like', "%{$keyword}%");
                 });
             })
             ->filterColumn('request_date', function($query, $keyword) {
+                // Tenta converter a data pesquisada para o formato do banco
+                $date = \DateTime::createFromFormat('d/m/Y', $keyword);
+                if ($date) {
+                    $formattedDate = $date->format('Y-m-d');
+                    $query->whereHas('request', function($q) use ($formattedDate) {
+                        $q->whereDate('date', $formattedDate);
+                    });
+                }
+            })
+            ->filterColumn('request_status', function($query, $keyword) {
                 $query->whereHas('request', function($q) use ($keyword) {
-                    $q->where('date', 'like', "%{$keyword}%");
+                    $q->where('process_status', 'like', "%{$keyword}%");
                 });
+            })
+            ->filterColumn('shipment_tracking', function($query, $keyword) {
+                $query->whereHas('request.shipment', function($q) use ($keyword) {
+                    $q->where('guide', 'like', "%{$keyword}%");
+                });
+            })
+            ->filterColumn('shipment_date', function($query, $keyword) {
+                $date = \DateTime::createFromFormat('d/m/Y', $keyword);
+                if ($date) {
+                    $formattedDate = $date->format('Y-m-d');
+                    $query->whereHas('request.shipment', function($q) use ($formattedDate) {
+                        $q->whereDate('date', $formattedDate);
+                    });
+                }
+            })
+            ->filterColumn('created_at', function($query, $keyword) {
+                $date = \DateTime::createFromFormat('d/m/Y', $keyword);
+                if ($date) {
+                    $formattedDate = $date->format('Y-m-d');
+                    $query->whereDate('created_at', $formattedDate);
+                }
+            })
+            ->filterColumn('updated_at', function($query, $keyword) {
+                $date = \DateTime::createFromFormat('d/m/Y', $keyword);
+                if ($date) {
+                    $formattedDate = $date->format('Y-m-d');
+                    $query->whereDate('updated_at', $formattedDate);
+                }
+            })
+            ->filterColumn('category_badge', function($query, $keyword) {
+                // Procura nas categorias pelo nome ou valor
+                $categories = array_flip(self::CATEGORIES ?? []);
+                $categoryValue = null;
+                
+                foreach ($categories as $name => $value) {
+                    if (stripos($name, $keyword) !== false) {
+                        $categoryValue = $value;
+                        break;
+                    }
+                }
+                
+                if ($categoryValue) {
+                    $query->where('category', $categoryValue);
+                } else {
+                    $query->where('category', 'like', "%{$keyword}%");
+                }
+            })
+            ->filterColumn('economic_classifier', function($query, $keyword) {
+                $query->where('economic_classifier', 'like', "%{$keyword}%");
+            })
+            ->filterColumn('status_badge', function($query, $keyword) {
+                // Procura nos status pelo nome
+                $statuses = array_flip(self::ASSET_STATUSES ?? []);
+                $statusValue = null;
+                
+                foreach ($statuses as $name => $value) {
+                    if (stripos($name, $keyword) !== false) {
+                        $statusValue = $value;
+                        break;
+                    }
+                }
+                
+                if ($statusValue) {
+                    $query->where('asset_status', $statusValue);
+                } else {
+                    $query->where('asset_status', 'like', "%{$keyword}%");
+                }
+            })
+            ->filterColumn('life_date', function($query, $keyword) {
+                $date = \DateTime::createFromFormat('d/m/Y', $keyword);
+                if ($date) {
+                    $formattedDate = $date->format('Y-m-d');
+                    $query->whereDate('life_date', $formattedDate);
+                }
+            })
+            ->filterColumn('warranty_expiry', function($query, $keyword) {
+                $date = \DateTime::createFromFormat('d/m/Y', $keyword);
+                if ($date) {
+                    $formattedDate = $date->format('Y-m-d');
+                    $query->whereDate('warranty_expiry', $formattedDate);
+                }
             })
             ->filterColumn('project_name', function($query, $keyword) {
                 $query->whereHas('request.project', function($q) use ($keyword) {
                     $q->where('name', 'like', "%{$keyword}%");
                 });
             })
-            ->filterColumn('employee_name', function($query, $keyword) {
+            ->filterColumn('employee_info', function($query, $keyword) {
                 $query->whereHas('employee', function($q) use ($keyword) {
+                    $q->where('name', 'like', "%{$keyword}%");
+                })->orWhereHas('employee.company', function($q) use ($keyword) {
                     $q->where('name', 'like', "%{$keyword}%");
                 });
             })
-            ->filterColumn('shipment_date', function($query, $keyword) {
-                $query->whereHas('shipment', function($q) use ($keyword) {
-                    $q->where('date', 'like', "%{$keyword}%");
+            ->filterColumn('request_info', function($query, $keyword) {
+                $query->whereHas('request', function($q) use ($keyword) {
+                    $q->where('code', 'like', "%{$keyword}%")
+                      ->orWhere('type', 'like', "%{$keyword}%");
                 });
             })
-            ->filterColumn('process_status', function($query, $keyword) {
-                $query->where('process_status', 'like', "%{$keyword}%");
-            })
-            
-            // FILTROS PARA CAMPOS DO ASSET (para pesquisa global funcionar com todos os campos)
-            ->filterColumn('asset_tag', function($query, $keyword) {
-                $query->orWhere('asset_tag', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('serial_number', function($query, $keyword) {
-                $query->orWhere('serial_number', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('category', function($query, $keyword) {
-                $query->orWhere('category', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('brand', function($query, $keyword) {
-                $query->orWhere('brand', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('model', function($query, $keyword) {
-                $query->orWhere('model', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('description', function($query, $keyword) {
-                $query->orWhere('description', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('acquisition_date', function($query, $keyword) {
-                $query->orWhere('acquisition_date', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('asset_status', function($query, $keyword) {
-                $query->orWhere('asset_status', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('location', function($query, $keyword) {
-                $query->orWhere('location', 'like', "%{$keyword}%");
-            })
-            ->filterColumn('notes', function($query, $keyword) {
-                $query->orWhere('notes', 'like', "%{$keyword}%");
-            })
             ->filterColumn('base_value', function($query, $keyword) {
-                $query->orWhere('base_value', 'like', "%{$keyword}%");
+                // Converte formato brasileiro para número
+                $keyword = str_replace(['.', ','], ['', '.'], $keyword);
+                if (is_numeric($keyword)) {
+                    $query->where('base_value', 'like', "%{$keyword}%");
+                }
             })
             ->filterColumn('iva_value', function($query, $keyword) {
-                $query->orWhere('iva_value', 'like', "%{$keyword}%");
+                $keyword = str_replace(['.', ','], ['', '.'], $keyword);
+                if (is_numeric($keyword)) {
+                    $query->where('iva_value', 'like', "%{$keyword}%");
+                }
             })
             ->filterColumn('total_value', function($query, $keyword) {
-                $query->orWhere('total_value', 'like', "%{$keyword}%");
+                $keyword = str_replace(['.', ','], ['', '.'], $keyword);
+                if (is_numeric($keyword)) {
+                    $query->where('total_value', 'like', "%{$keyword}%");
+                }
             })
-            ->filterColumn('warranty_expiry', function($query, $keyword) {
-                $query->orWhere('warranty_expiry', 'like', "%{$keyword}%");
+            ->filterColumn('documents_count', function($query, $keyword) {
+                // Filtro para número de documentos
+                if (is_numeric($keyword)) {
+                    $query->has('documents', '=', $keyword);
+                }
+            })
+            ->filterColumn('maintenances_count', function($query, $keyword) {
+                // Filtro para número de manutenções ativas
+                if (is_numeric($keyword)) {
+                    $query->whereHas('maintenances', function($q) {
+                        $q->where('status', '!=', 'concluida');
+                    }, '=', $keyword);
+                }
             })
             
-            // Ordenações existentes (mantendo exatamente como estão)
+            // Ordenações
+            ->orderColumn('economic_classifier', 'economic_classifier $1')
+            ->orderColumn('life_date', 'life_date $1')
             ->orderColumn('base_value', 'base_value $1')
             ->orderColumn('iva_value', 'iva_value $1')
             ->orderColumn('total_value', 'total_value $1')
-            ->orderColumn('company_name', 'employee.company.name $1')
-            ->orderColumn('invoice_number', 'invoice.number $1')
-            ->orderColumn('request_code', 'request.code $1')
-            ->orderColumn('shipment_tracking', 'shipment.guide $1')
-            
-            // Novas ordenações para as outras colunas
-            ->orderColumn('supplier_info', function($query, $order) {
-                $query->leftJoin('suppliers', 'assets.supplier_id', '=', 'suppliers.id')
-                      ->orderBy('suppliers.name', $order);
-            })
-            ->orderColumn('request_type', function($query, $order) {
-                $query->leftJoin('requests', 'assets.request_id', '=', 'requests.id')
-                      ->orderBy('requests.type', $order);
-            })
-            ->orderColumn('request_date', function($query, $order) {
-                $query->leftJoin('requests', 'assets.request_id', '=', 'requests.id')
-                      ->orderBy('requests.date', $order);
-            })
-            ->orderColumn('project_name', function($query, $order) {
-                $query->leftJoin('requests', 'assets.request_id', '=', 'requests.id')
-                      ->leftJoin('projects', 'requests.project_id', '=', 'projects.id')
-                      ->orderBy('projects.name', $order);
-            })
-            ->orderColumn('employee_name', function($query, $order) {
-                $query->leftJoin('employees', 'assets.employee_id', '=', 'employees.id')
-                      ->orderBy('employees.name', $order);
-            })
-            ->orderColumn('shipment_date', function($query, $order) {
-                $query->leftJoin('shipments', 'assets.shipment_id', '=', 'shipments.id')
-                      ->orderBy('shipments.date', $order);
-            })
-            ->orderColumn('process_status', 'process_status $1')
-            ->orderColumn('asset_tag', 'asset_tag $1')
-            ->orderColumn('serial_number', 'serial_number $1')
-            ->orderColumn('category', 'category $1')
+            ->orderColumn('warranty_expiry', 'warranty_expiry $1')
+            ->orderColumn('created_at', 'created_at $1')
             ->orderColumn('brand', 'brand $1')
             ->orderColumn('model', 'model $1')
-            ->orderColumn('acquisition_date', 'acquisition_date $1')
-            ->orderColumn('asset_status', 'asset_status $1')
-            ->orderColumn('location', 'location $1')
-            ->orderColumn('warranty_expiry', 'warranty_expiry $1')
+            ->orderColumn('serial_number', 'serial_number $1')
+            ->orderColumn('employee_name', function($query, $order) {
+                $query->orderBy(
+                    Employee::select('name')
+                        ->whereColumn('employees.id', 'assets.employee_id'),
+                    $order
+                );
+            })
+            ->orderColumn('company_name', function($query, $order) {
+                $query->orderBy(
+                    Company::select('name')
+                        ->join('employees', 'companies.id', '=', 'employees.company_id')
+                        ->whereColumn('employees.id', 'assets.employee_id'),
+                    $order
+                );
+            })
+            ->orderColumn('supplier_name', function($query, $order) {
+                $query->orderBy(
+                    Supplier::select('name')
+                        ->join('requests', 'suppliers.id', '=', 'requests.supplier_id')
+                        ->whereColumn('requests.id', 'assets.request_id'),
+                    $order
+                );
+            })
+            ->orderColumn('request_code', function($query, $order) {
+                $query->orderBy(
+                    Request::select('code')
+                        ->whereColumn('requests.id', 'assets.request_id'),
+                    $order
+                );
+            })
+            ->orderColumn('request_date', function($query, $order) {
+                $query->orderBy(
+                    Request::select('date')
+                        ->whereColumn('requests.id', 'assets.request_id'),
+                    $order
+                );
+            })
             
             ->rawColumns([
-                'checkbox', 
-                'status_badge', 
-                'category_badge', 
-                'warranty_indicator', 
-                'actions',
-                'company_name',
-                'supplier_info',
-                'invoice_number',
-                'request_code',
-                'shipment_tracking'
+                'checkbox',
+                'status_badge',
+                'category_badge',
+                'economic_classifier',
+                'life_status',
+                'warranty_indicator',
+                'documents_count',
+                'maintenances_count',
+                'request_info',
+                'employee_info',
+                'formatted_values',
+                'actions'
             ])
             ->toJson();
 
     } catch (\Exception $e) {
-        \Log::error('Erro no DataTables: ' . $e->getMessage(), [
+        \Log::error('Erro no DataTables de Assets: ' . $e->getMessage(), [
             'trace' => $e->getTraceAsString(),
             'request' => $request->all()
         ]);
@@ -379,365 +663,14 @@ class AssetController extends Controller
             'recordsTotal' => 0,
             'recordsFiltered' => 0,
             'data' => [],
-            'error' => 'Erro ao carregar dados'
+            'error' => 'Erro ao carregar dados: ' . $e->getMessage()
         ], 500);
     }
 }
-    private function applyQuickFilter($query, $filter)
-    {
-        switch($filter) {
-            case 'disponivel':
-                return $query->where('asset_status', 'disponivel');
-            case 'atribuido':
-                return $query->where('asset_status', 'atribuido');
-            case 'inoperacional':
-                return $query->where('asset_status', 'inoperacional');
-            case 'abatido':
-                return $query->where('asset_status', 'abatido');
-            case 'manutencao':
-                return $query->where('asset_status', 'manutencao');
-            case 'garantia':
-                $thirtyDaysFromNow = now()->addDays(30)->format('Y-m-d');
-                return $query->whereNotNull('warranty_expiry')
-                    ->where('warranty_expiry', '<=', $thirtyDaysFromNow)
-                    ->where('warranty_expiry', '>=', now()->format('Y-m-d'));
-            default:
-                return $query;
-        }
-    }
-
-    public function stats()
-    {
-        $stats = [
-            'total' => Asset::count(),
-            'disponivel' => Asset::where('asset_status', 'disponivel')->count(),
-            'atribuido' => Asset::where('asset_status', 'atribuido')->count(),
-            'inoperacional' => Asset::where('asset_status', 'inoperacional')->count(),
-            'manutencao' => Asset::where('asset_status', 'manutencao')->count(),
-            'abatido' => Asset::where('asset_status', 'abatido')->count(),
-        ];
-
-        return response()->json([
-            'success' => true,
-            'data' => $stats
-        ]);
-    }
-
-    //Excel export
-    public function export(HttpRequest $request)
-{
-    try {
-        $query = Asset::with([
-            'employee.company', 
-            'supplier', 
-            'invoice', 
-            'request',
-            'request.project',
-            'shipment',
-            'documents'
-        ]);
-
-        // APLICAR OS MESMOS FILTROS DO DATATABLE
-        // ============================================
-        
-        // Filtro rápido (status)
-        if ($request->filled('quick_filter') && $request->quick_filter !== 'all') {
-            $query = $this->applyQuickFilter($query, $request->quick_filter);
-        }
-
-        // Filtros de coluna individuais (advanced filters)
-        if ($request->filled('filters')) {
-            $filters = is_array($request->filters) ? $request->filters : json_decode($request->filters, true);
-            
-            foreach ($filters as $column => $value) {
-                if (empty($value)) continue;
-                
-                switch ($column) {
-                    case 'company_name':
-                        $query->whereHas('employee.company', function($q) use ($value) {
-                            $q->where('name', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'supplier_info':
-                        $query->whereHas('supplier', function($q) use ($value) {
-                            $q->where('name', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'invoice_number':
-                        $query->whereHas('invoice', function($q) use ($value) {
-                            $q->where('number', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'request_code':
-                        $query->whereHas('request', function($q) use ($value) {
-                            $q->where('code', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'request_type':
-                        $query->whereHas('request', function($q) use ($value) {
-                            $q->where('type', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'request_date':
-                        $query->whereHas('request', function($q) use ($value) {
-                            $q->where('date', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'project_name':
-                        $query->whereHas('request.project', function($q) use ($value) {
-                            $q->where('name', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'employee_name':
-                        $query->whereHas('employee', function($q) use ($value) {
-                            $q->where('name', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'shipment_tracking':
-                        $query->whereHas('shipment', function($q) use ($value) {
-                            $q->where('guide', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'shipment_date':
-                        $query->whereHas('shipment', function($q) use ($value) {
-                            $q->where('date', 'like', "%{$value}%");
-                        });
-                        break;
-                    case 'process_status':
-                        $query->where('process_status', 'like', "%{$value}%");
-                        break;
-                    case 'asset_tag':
-                        $query->where('asset_tag', 'like', "%{$value}%");
-                        break;
-                    case 'serial_number':
-                        $query->where('serial_number', 'like', "%{$value}%");
-                        break;
-                    case 'category':
-                        $query->where('category', 'like', "%{$value}%");
-                        break;
-                    case 'brand':
-                        $query->where('brand', 'like', "%{$value}%");
-                        break;
-                    case 'model':
-                        $query->where('model', 'like', "%{$value}%");
-                        break;
-                    case 'description':
-                        $query->where('description', 'like', "%{$value}%");
-                        break;
-                    case 'acquisition_date':
-                        $query->where('acquisition_date', 'like', "%{$value}%");
-                        break;
-                    case 'asset_status':
-                        $query->where('asset_status', 'like', "%{$value}%");
-                        break;
-                    case 'location':
-                        $query->where('location', 'like', "%{$value}%");
-                        break;
-                    case 'base_value':
-                        $query->where('base_value', 'like', "%{$value}%");
-                        break;
-                    case 'iva_value':
-                        $query->where('iva_value', 'like', "%{$value}%");
-                        break;
-                    case 'total_value':
-                        $query->where('total_value', 'like', "%{$value}%");
-                        break;
-                    case 'warranty_expiry':
-                        $query->where('warranty_expiry', 'like', "%{$value}%");
-                        break;
-                }
-            }
-        }
-
-        // Filtro de pesquisa global (search)
-        if ($request->filled('search')) {
-            $searchTerm = $request->search;
-            $query->where(function($q) use ($searchTerm) {
-                // Campos diretos do Asset
-                $q->where('asset_tag', 'like', "%{$searchTerm}%")
-                  ->orWhere('serial_number', 'like', "%{$searchTerm}%")
-                  ->orWhere('brand', 'like', "%{$searchTerm}%")
-                  ->orWhere('model', 'like', "%{$searchTerm}%")
-                  ->orWhere('description', 'like', "%{$searchTerm}%")
-                  ->orWhere('category', 'like', "%{$searchTerm}%")
-                  ->orWhere('location', 'like', "%{$searchTerm}%")
-                  ->orWhere('notes', 'like', "%{$searchTerm}%")
-                  ->orWhere('asset_status', 'like', "%{$searchTerm}%")
-                  ->orWhere('process_status', 'like', "%{$searchTerm}%")
-                  ->orWhere('base_value', 'like', "%{$searchTerm}%")
-                  ->orWhere('total_value', 'like', "%{$searchTerm}%")
-                  // Relacionamentos
-                  ->orWhereHas('employee', function($q) use ($searchTerm) {
-                      $q->where('name', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('employee.company', function($q) use ($searchTerm) {
-                      $q->where('name', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('supplier', function($q) use ($searchTerm) {
-                      $q->where('name', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('invoice', function($q) use ($searchTerm) {
-                      $q->where('number', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('request', function($q) use ($searchTerm) {
-                      $q->where('code', 'like', "%{$searchTerm}%")
-                        ->orWhere('type', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('request.project', function($q) use ($searchTerm) {
-                      $q->where('name', 'like', "%{$searchTerm}%")
-                        ->orWhere('code', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('shipment', function($q) use ($searchTerm) {
-                      $q->where('guide', 'like', "%{$searchTerm}%");
-                  });
-            });
-        }
-
-        // Ordenação (se vier da request)
-        if ($request->filled('order_column')) {
-            $orderDir = $request->get('order_dir', 'asc');
-            $orderColumn = $request->order_column;
-            
-            // Mapear colunas de ordenação
-            $orderMapping = [
-                'company_name' => 'employee.company.name',
-                'supplier_info' => 'supplier.name',
-                'invoice_number' => 'invoice.number',
-                'request_code' => 'request.code',
-                'request_date' => 'request.date',
-                'project_name' => 'request.project.name',
-                'employee_name' => 'employee.name',
-                'shipment_tracking' => 'shipment.guide',
-                'shipment_date' => 'shipment.date',
-            ];
-            
-            if (isset($orderMapping[$orderColumn])) {
-                $query->orderBy($orderMapping[$orderColumn], $orderDir);
-            } else {
-                $query->orderBy($orderColumn ?? 'id', $orderDir);
-            }
-        } else {
-            $query->orderBy('id', 'desc');
-        }
-
-        // Buscar todos os registros filtrados
-        $assets = $query->get();
-
-        // Mapear dados para exportação
-        $data = $assets->map(function($asset) {
-            // Badge de garantia igual ao datatable
-            $warrantyText = 'N/A';
-            if ($asset->warranty_expiry) {
-                try {
-                    $expiry = new \DateTime($asset->warranty_expiry);
-                    $today = new \DateTime();
-                    
-                    if ($expiry < $today) {
-                        $warrantyText = 'Expirada';
-                    } else {
-                        $interval = $today->diff($expiry);
-                        $days = $interval->days;
-                        
-                        if ($days <= 30) {
-                            $warrantyText = $days . ' dias restantes';
-                        } else {
-                            $warrantyText = $expiry->format('d/m/Y');
-                        }
-                    }
-                } catch (\Exception $e) {
-                    $warrantyText = 'N/A';
-                }
-            }
-
-            return [
-                'ID' => $asset->id,
-                'Asset Tag' => $asset->asset_tag,
-                'Nº Série' => $asset->serial_number,
-                'Categoria' => self::CATEGORIES[$asset->category] ?? $asset->category,
-                'Marca' => $asset->brand,
-                'Modelo' => $asset->model,
-                'Descrição' => $asset->description,
-                'Estado' => self::ASSET_STATUSES[$asset->asset_status] ?? $asset->asset_status,
-                'Status Processo' => $asset->process_status ?? 'N/A',
-                'Localização' => $asset->location,
-                'Valor Base (MT)' => number_format($asset->base_value, 2, ',', '.'),
-                'IVA (MT)' => number_format($asset->iva_value, 2, ',', '.'),
-                'Valor Total (MT)' => number_format($asset->total_value, 2, ',', '.'),
-                'Data Aquisição' => $asset->acquisition_date ? 
-                    \Carbon\Carbon::parse($asset->acquisition_date)->format('d/m/Y') : 'N/A',
-                'Garantia' => $warrantyText,
-                'Fornecedor' => $asset->supplier->name ?? 'N/A',
-                'Nº Factura' => $asset->invoice->number ?? 'N/A',
-                'Data Factura' => $asset->invoice && $asset->invoice->date ? 
-                    \Carbon\Carbon::parse($asset->invoice->date)->format('d/m/Y') : 'N/A',
-                'Código Requisição' => $asset->request->code ?? 'N/A',
-                'Tipo Requisição' => $asset->request->type ?? 'N/A',
-                'Data Requisição' => $asset->request && $asset->request->date ? 
-                    \Carbon\Carbon::parse($asset->request->date)->format('d/m/Y') : 'N/A',
-                'Projecto' => $asset->request && $asset->request->project ? 
-                    $asset->request->project->name : 'N/A',
-                'Código Projecto' => $asset->request && $asset->request->project ? 
-                    $asset->request->project->code : 'N/A',
-                'Colaborador' => $asset->employee->name ?? 'N/A',
-                'Empresa' => $asset->employee && $asset->employee->company ? 
-                    $asset->employee->company->name : 'N/A',
-                'Data Atribuição' => $asset->assignment_date ? 
-                    \Carbon\Carbon::parse($asset->assignment_date)->format('d/m/Y') : 'N/A',
-                'Guia Remessa' => $asset->shipment->guide ?? 'N/A',
-                'Data Remessa' => $asset->shipment && $asset->shipment->date ? 
-                    \Carbon\Carbon::parse($asset->shipment->date)->format('d/m/Y') : 'N/A',
-                'Nº Documentos' => $asset->documents ? $asset->documents->count() : 0,
-                'Observações' => $asset->notes ?? 'N/A',
-                'Data Registo' => $asset->created_at ? 
-                    \Carbon\Carbon::parse($asset->created_at)->format('d/m/Y H:i') : 'N/A',
-                'Última Actualização' => $asset->updated_at ? 
-                    \Carbon\Carbon::parse($asset->updated_at)->format('d/m/Y H:i') : 'N/A',
-            ];
-        });
-
-        return response()->json([
-            'success' => true,
-            'data' => $data,
-            'total' => $assets->count(),
-            'message' => 'Exportação realizada com sucesso'
-        ]);
-
-    } catch (\Exception $e) {
-        \Log::error('Erro na exportação: ' . $e->getMessage(), [
-            'trace' => $e->getTraceAsString(),
-            'request' => $request->all()
-        ]);
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Erro ao exportar dados: ' . $e->getMessage(),
-            'data' => []
-        ], 500);
-    }
-}
-    public function quickView(Asset $asset)
-    {
-        $asset->load(['employee.company', 'supplier', 'invoice', 'request', 'shipment', 'documents']);
-        
-        return response()->json([
-            'success' => true,
-            'data' => $asset
-        ]);
-    }
 
     /**
-     * Show the form for editing the specified resource.
+     * Store a newly created resource in storage.
      */
-        public function edit(Asset $asset)
-        {
-            $asset->load(['employee.company', 'supplier', 'invoice', 'request', 'shipment', 'documents']);
-            
-            return response()->json([
-                'success' => true,
-                'data' => $asset
-            ]);
-        }
-
     public function store(HttpRequest $request)
     {
         $validator = Validator::make($request->all(), [
@@ -747,21 +680,31 @@ class AssetController extends Controller
             'serial_number' => 'nullable|string|max:100|unique:assets,serial_number',
             'brand' => 'nullable|string|max:100',
             'model' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
             'total_value' => 'required|numeric|min:0',
             'base_value' => 'required|numeric|min:0',
             'iva_value' => 'required|numeric|min:0',
-            'supplier_id' => 'nullable|exists:suppliers,id',
-            'invoice_id' => 'nullable|exists:invoices,id',
-            'request_id' => 'nullable|exists:requests,id',
-            'shipment_id' => 'nullable|exists:shipments,id',
+            'economic_classifier' => 'nullable|string|max:50',
+            'life_date' => 'nullable|date|after:today',
+            'warranty_expiry' => 'nullable|date|after:today',
+            'request_id' => 'required|exists:requests,id',
             'employee_id' => 'nullable|exists:employees,id',
-            'warranty_expiry' => 'nullable|date',
+            'location' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255',
+            'notes' => 'nullable|string'
         ], [
+            'code.required' => 'O código do ativo é obrigatório.',
             'code.unique' => 'Este código já está em uso.',
+            'name.required' => 'O nome do ativo é obrigatório.',
+            'category.required' => 'A categoria é obrigatória.',
             'serial_number.unique' => 'Este número de série já está em uso.',
             'total_value.required' => 'O valor total é obrigatório.',
             'base_value.required' => 'O valor base é obrigatório.',
             'iva_value.required' => 'O valor do IVA é obrigatório.',
+            'request_id.required' => 'A requisição é obrigatória.',
+            'request_id.exists' => 'A requisição selecionada não existe.',
+            'life_date.after' => 'A data de fim de vida útil deve ser futura.',
+            'warranty_expiry.after' => 'A data de expiração da garantia deve ser futura.'
         ]);
 
         if ($validator->fails()) {
@@ -774,18 +717,8 @@ class AssetController extends Controller
         try {
             DB::beginTransaction();
 
-            $assetData = $request->only([
-                'code', 'name', 'description', 'serial_number', 
-                'brand', 'model', 'category', 
-                'base_value', 'iva_value', 'total_value',
-                'supplier_id', 'invoice_id', 'request_id',
-                'shipment_id', 'employee_id',
-                'department', 'warranty_expiry', 'purchase_date',
-                'location'
-            ]);
-
-            // Verificar se os valores são consistentes
-            $calculatedTotal = $request->base_value + $request->iva_value;
+            // Verificar consistência dos valores
+            $calculatedTotal = round($request->base_value + $request->iva_value, 2);
             if (abs($calculatedTotal - $request->total_value) > 0.01) {
                 return response()->json([
                     'success' => false,
@@ -795,38 +728,119 @@ class AssetController extends Controller
                 ], 422);
             }
 
-            // Definir status baseado no employee_id
-            $assetData['asset_status'] = $request->employee_id ? 'atribuido' : 'disponivel';
-            $assetData['assignment_date'] = $request->employee_id ? now() : null;
+            $assetData = [
+                'code' => $request->code,
+                'name' => $request->name,
+                'description' => $request->description,
+                'serial_number' => $request->serial_number,
+                'brand' => $request->brand,
+                'model' => $request->model,
+                'category' => $request->category,
+                'economic_classifier' => $request->economic_classifier,
+                'life_date' => $request->life_date,
+                'total_value' => $request->total_value,
+                'base_value' => $request->base_value,
+                'iva_value' => $request->iva_value,
+                'request_id' => $request->request_id,
+                'employee_id' => $request->employee_id,
+                'location' => $request->location,
+                'department' => $request->department,
+                'warranty_expiry' => $request->warranty_expiry,
+                'notes' => $request->notes,
+                'asset_status' => $request->employee_id ? 'atribuido' : 'disponivel',
+                'assignment_date' => $request->employee_id ? now() : null
+            ];
 
             $asset = Asset::create($assetData);
+
+            // Se atribuído, criar registro no histórico
+            if ($request->employee_id) {
+                AssetAssignment::create([
+                    'asset_id' => $asset->id,
+                    'employee_id' => $request->employee_id,
+                    'assignment_date' => now(),
+                    'status' => 'atribuido'
+                ]);
+            }
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Activo criado com sucesso!',
-                'data' => $asset
+                'message' => 'Ativo criado com sucesso!',
+                'data' => $asset->load(['request.project', 'employee.company'])
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Erro ao criar ativo: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao criar activo: ' . $e->getMessage()
+                'message' => 'Erro ao criar ativo: ' . $e->getMessage()
             ], 500);
         }
     }
 
+    /**
+     * Display the specified resource.
+     */
     public function show(Asset $asset)
     {
-        $asset->load(['employee.company', 'supplier', 'invoice', 'request', 'shipment', 'documents']);
+        $asset->load([
+            'employee.company', 
+            'request', 
+            'request.project',
+            'documents',
+            'maintenances' => function($q) {
+                $q->orderBy('created_at', 'desc');
+            },
+            'assignments' => function($q) {
+                $q->with('employee')->orderBy('created_at', 'desc');
+            }
+        ]);
+
+        // Adicionar informações da requisição
+        if ($asset->request) {
+            $asset->request_info = [
+                'code' => $asset->request->code,
+                'type' => $asset->request->type,
+                'date' => $asset->request->date,
+                'process_status' => $asset->request->process_status,
+                'incomplete_reason' => $asset->request->incomplete_reason,
+                'project' => $asset->request->project ? $asset->request->project->name : null
+            ];
+        }
+
         return response()->json([
             'success' => true,
             'data' => $asset
         ]);
     }
 
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Asset $asset)
+    {
+        $asset->load([
+            'employee.company', 
+            'request', 
+            'request.project'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $asset
+        ]);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
     public function update(HttpRequest $request, Asset $asset)
     {
         $validator = Validator::make($request->all(), [
@@ -836,18 +850,22 @@ class AssetController extends Controller
             'serial_number' => 'nullable|string|max:100|unique:assets,serial_number,' . $asset->id,
             'brand' => 'nullable|string|max:100',
             'model' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
             'total_value' => 'required|numeric|min:0',
             'base_value' => 'required|numeric|min:0',
             'iva_value' => 'required|numeric|min:0',
-            'supplier_id' => 'nullable|exists:suppliers,id',
-            'invoice_id' => 'nullable|exists:invoices,id',
-            'request_id' => 'nullable|exists:requests,id',
-            'shipment_id' => 'nullable|exists:shipments,id',
-            'employee_id' => 'nullable|exists:employees,id',
+            'economic_classifier' => 'nullable|string|max:50',
+            'life_date' => 'nullable|date',
             'warranty_expiry' => 'nullable|date',
+            'request_id' => 'required|exists:requests,id',
+            'employee_id' => 'nullable|exists:employees,id',
+            'location' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255',
+            'notes' => 'nullable|string'
         ], [
             'code.unique' => 'Este código já está em uso.',
             'serial_number.unique' => 'Este número de série já está em uso.',
+            'request_id.required' => 'A requisição é obrigatória.'
         ]);
 
         if ($validator->fails()) {
@@ -860,18 +878,8 @@ class AssetController extends Controller
         try {
             DB::beginTransaction();
 
-            $assetData = $request->only([
-                'code', 'name', 'description', 'serial_number', 
-                'brand', 'model', 'category', 
-                'base_value', 'iva_value', 'total_value',
-                'supplier_id', 'invoice_id', 'request_id',
-                'shipment_id', 'employee_id',
-                'department', 'warranty_expiry', 'purchase_date',
-                'location'
-            ]);
-
-            // Verificar se os valores são consistentes
-            $calculatedTotal = $request->base_value + $request->iva_value;
+            // Verificar consistência dos valores
+            $calculatedTotal = round($request->base_value + $request->iva_value, 2);
             if (abs($calculatedTotal - $request->total_value) > 0.01) {
                 return response()->json([
                     'success' => false,
@@ -881,18 +889,74 @@ class AssetController extends Controller
                 ], 422);
             }
 
-            // Atualizar status baseado no employee_id
+            // Verificar mudança de employee
             $oldEmployeeId = $asset->employee_id;
             $newEmployeeId = $request->employee_id;
-            
+
+            $assetData = [
+                'code' => $request->code,
+                'name' => $request->name,
+                'description' => $request->description,
+                'serial_number' => $request->serial_number,
+                'brand' => $request->brand,
+                'model' => $request->model,
+                'category' => $request->category,
+                'economic_classifier' => $request->economic_classifier,
+                'life_date' => $request->life_date,
+                'total_value' => $request->total_value,
+                'base_value' => $request->base_value,
+                'iva_value' => $request->iva_value,
+                'request_id' => $request->request_id,
+                'employee_id' => $newEmployeeId,
+                'location' => $request->location,
+                'department' => $request->department,
+                'warranty_expiry' => $request->warranty_expiry,
+                'notes' => $request->notes
+            ];
+
+            // Atualizar status baseado no employee
             if (!$oldEmployeeId && $newEmployeeId) {
                 $assetData['asset_status'] = 'atribuido';
                 $assetData['assignment_date'] = now();
+                
+                // Criar registro de atribuição
+                AssetAssignment::create([
+                    'asset_id' => $asset->id,
+                    'employee_id' => $newEmployeeId,
+                    'assignment_date' => now(),
+                    'status' => 'atribuido'
+                ]);
             } elseif ($oldEmployeeId && !$newEmployeeId) {
                 $assetData['asset_status'] = 'disponivel';
                 $assetData['assignment_date'] = null;
+                
+                // Fechar atribuição anterior
+                $lastAssignment = $asset->assignments()->where('status', 'atribuido')->latest()->first();
+                if ($lastAssignment) {
+                    $lastAssignment->update([
+                        'release_date' => now(),
+                        'status' => 'liberado'
+                    ]);
+                }
             } elseif ($oldEmployeeId && $newEmployeeId && $oldEmployeeId != $newEmployeeId) {
                 $assetData['assignment_date'] = now();
+                
+                // Fechar atribuição anterior
+                $lastAssignment = $asset->assignments()->where('status', 'atribuido')->latest()->first();
+                if ($lastAssignment) {
+                    $lastAssignment->update([
+                        'release_date' => now(),
+                        'status' => 'liberado'
+                    ]);
+                }
+                
+                // Nova atribuição
+                AssetAssignment::create([
+                    'asset_id' => $asset->id,
+                    'employee_id' => $newEmployeeId,
+                    'assignment_date' => now(),
+                    'status' => 'atribuido'
+                ]);
             }
 
             $asset->update($assetData);
@@ -901,36 +965,328 @@ class AssetController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Activo atualizado com sucesso!',
-                'data' => $asset
+                'message' => 'Ativo atualizado com sucesso!',
+                'data' => $asset->fresh(['request.project', 'employee.company'])
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Erro ao atualizar ativo: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao atualizar ativo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage (soft delete).
+     */
+    public function destroy(Asset $asset)
+    {
+        try {
+            // Verificar se pode ser eliminado
+            if ($asset->asset_status === 'atribuido') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Não é possível eliminar um ativo atribuído. Remova a atribuição primeiro.'
+                ], 422);
+            }
+
+            if ($asset->asset_status === 'manutencao') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Não é possível eliminar um ativo em manutenção. Conclua ou cancele a manutenção primeiro.'
+                ], 422);
+            }
+
+            $asset->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ativo eliminado com sucesso!'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erro ao eliminar ativo: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao eliminar ativo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Restore soft deleted asset
+     */
+    public function restore($id)
+    {
+        try {
+            $asset = Asset::withTrashed()->findOrFail($id);
+            $asset->restore();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ativo restaurado com sucesso!'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao restaurar ativo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Force delete asset
+     */
+    public function forceDelete($id)
+    {
+        try {
+            DB::beginTransaction();
+
+            $asset = Asset::withTrashed()->findOrFail($id);
+
+            // Eliminar documentos associados
+            foreach ($asset->documents as $document) {
+                Storage::disk('public')->delete($document->path);
+                $document->delete();
+            }
+
+            // Eliminar manutenções associadas
+            $asset->maintenances()->delete();
+
+            // Eliminar atribuições associadas
+            $asset->assignments()->delete();
+
+            // Finalmente, eliminar o ativo
+            $asset->forceDelete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ativo eliminado permanentemente!'
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao atualizar activo: ' . $e->getMessage()
+                'message' => 'Erro ao eliminar ativo permanentemente: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    public function destroy(Asset $asset)
+    /**
+     * Quick view asset details
+     */
+    public function quickView(Asset $asset)
+    {
+        $asset->load([
+            'employee.company', 
+            'request', 
+            'request.project',
+            'documents',
+            'maintenances' => function($q) {
+                $q->orderBy('created_at', 'desc')->limit(5);
+            }
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $asset
+        ]);
+    }
+
+    /**
+     * Get statistics
+     */
+    public function stats()
     {
         try {
-            $asset->delete();
-            
+            $stats = [
+                'total' => Asset::count(),
+                'disponivel' => Asset::where('asset_status', 'disponivel')->count(),
+                'atribuido' => Asset::where('asset_status', 'atribuido')->count(),
+                'inoperacional' => Asset::where('asset_status', 'inoperacional')->count(),
+                'manutencao' => Asset::where('asset_status', 'manutencao')->count(),
+                'abatido' => Asset::where('asset_status', 'abatido')->count(),
+                'garantia_expirada' => Asset::whereNotNull('warranty_expiry')
+                    ->where('warranty_expiry', '<', now())
+                    ->count(),
+                'garantia_proxima' => Asset::whereNotNull('warranty_expiry')
+                    ->where('warranty_expiry', '>=', now())
+                    ->where('warranty_expiry', '<=', now()->addDays(30))
+                    ->count(),
+                'vida_util_proxima' => Asset::whereNotNull('life_date')
+                    ->where('life_date', '>=', now())
+                    ->where('life_date', '<=', now()->addMonths(6))
+                    ->count(),
+                'vida_util_expirada' => Asset::whereNotNull('life_date')
+                    ->where('life_date', '<', now())
+                    ->count(),
+                'total_valor' => Asset::sum('total_value'),
+                'media_valor' => Asset::avg('total_value')
+            ];
+
             return response()->json([
                 'success' => true,
-                'message' => 'Activo eliminado com sucesso!'
+                'data' => $stats
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao eliminar activo: ' . $e->getMessage()
+                'message' => 'Erro ao carregar estatísticas: ' . $e->getMessage()
             ], 500);
         }
     }
 
+    /**
+     * Export assets data
+     */
+    public function export(HttpRequest $request)
+    {
+        try {
+            $query = Asset::with([
+                'employee.company',
+                'request',
+                'request.project',
+                'documents'
+            ]);
+
+            // Aplicar filtros (mesmos do datatable)
+            if ($request->filled('asset_status') && $request->asset_status !== 'all') {
+                $query->where('asset_status', $request->asset_status);
+            }
+
+            if ($request->filled('category') && $request->category !== 'all') {
+                $query->where('category', $request->category);
+            }
+
+            if ($request->filled('request_id') && $request->request_id) {
+                $query->where('request_id', $request->request_id);
+            }
+
+            if ($request->filled('employee_id') && $request->employee_id) {
+                $query->where('employee_id', $request->employee_id);
+            }
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('code', 'like', "%{$search}%")
+                      ->orWhere('name', 'like', "%{$search}%")
+                      ->orWhere('serial_number', 'like', "%{$search}%")
+                      ->orWhere('brand', 'like', "%{$search}%")
+                      ->orWhere('model', 'like', "%{$search}%")
+                      ->orWhere('economic_classifier', 'like', "%{$search}%");
+                });
+            }
+
+            $assets = $query->orderBy('id', 'desc')->get();
+
+            $data = $assets->map(function($asset) {
+                $warrantyStatus = 'N/A';
+                $lifeStatus = 'N/A';
+
+                if ($asset->warranty_expiry) {
+                    try {
+                        $expiry = new \DateTime($asset->warranty_expiry);
+                        $today = new \DateTime();
+                        
+                        if ($expiry < $today) {
+                            $warrantyStatus = 'Expirada em ' . $expiry->format('d/m/Y');
+                        } else {
+                            $interval = $today->diff($expiry);
+                            $warrantyStatus = 'Válida até ' . $expiry->format('d/m/Y') . ' (' . $interval->days . ' dias)';
+                        }
+                    } catch (\Exception $e) {
+                        $warrantyStatus = 'Inválida';
+                    }
+                }
+
+                if ($asset->life_date) {
+                    try {
+                        $lifeDate = new \DateTime($asset->life_date);
+                        $today = new \DateTime();
+                        
+                        if ($lifeDate < $today) {
+                            $lifeStatus = 'Expirada em ' . $lifeDate->format('d/m/Y');
+                        } else {
+                            $interval = $today->diff($lifeDate);
+                            $months = ($interval->y * 12) + $interval->m;
+                            $lifeStatus = 'Válida até ' . $lifeDate->format('d/m/Y') . ' (' . $months . ' meses)';
+                        }
+                    } catch (\Exception $e) {
+                        $lifeStatus = 'Inválida';
+                    }
+                }
+
+                return [
+                    'ID' => $asset->id,
+                    'Código' => $asset->code,
+                    'Nome' => $asset->name,
+                    'Descrição' => $asset->description,
+                    'Categoria' => self::CATEGORIES[$asset->category] ?? $asset->category,
+                    'Classificador Económico' => $asset->economic_classifier ?? 'N/A',
+                    'Nº Série' => $asset->serial_number ?? 'N/A',
+                    'Marca' => $asset->brand ?? 'N/A',
+                    'Modelo' => $asset->model ?? 'N/A',
+                    'Status' => self::ASSET_STATUSES[$asset->asset_status] ?? $asset->asset_status,
+                    'Valor Base (MT)' => number_format($asset->base_value, 2, ',', '.'),
+                    'IVA (MT)' => number_format($asset->iva_value, 2, ',', '.'),
+                    'Valor Total (MT)' => number_format($asset->total_value, 2, ',', '.'),
+                    'Garantia' => $warrantyStatus,
+                    'Fim Vida Útil' => $lifeStatus,
+                    'Requisição' => $asset->request ? $asset->request->code : 'N/A',
+                    'Tipo Requisição' => $asset->request ? $asset->request->type : 'N/A',
+                    'Status Requisição' => $asset->request ? $asset->request->process_status : 'N/A',
+                    'Projeto' => $asset->request && $asset->request->project ? $asset->request->project->name : 'N/A',
+                    'Colaborador' => $asset->employee ? $asset->employee->name : 'Não atribuído',
+                    'Empresa' => $asset->employee && $asset->employee->company ? $asset->employee->company->name : 'N/A',
+                    'Data Atribuição' => $asset->assignment_date ? \Carbon\Carbon::parse($asset->assignment_date)->format('d/m/Y') : 'N/A',
+                    'Localização' => $asset->location ?? 'N/A',
+                    'Departamento' => $asset->department ?? 'N/A',
+                    'Nº Documentos' => $asset->documents->count(),
+                    'Observações' => $asset->notes ?? 'N/A',
+                    'Data Registo' => $asset->created_at ? $asset->created_at->format('d/m/Y H:i') : 'N/A',
+                    'Última Atualização' => $asset->updated_at ? $asset->updated_at->format('d/m/Y H:i') : 'N/A',
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'total' => $assets->count(),
+                'message' => 'Exportação realizada com sucesso'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erro na exportação: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao exportar dados: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign asset to employee
+     */
     public function assign(HttpRequest $request, Asset $asset)
     {
         $validator = Validator::make($request->all(), [
@@ -938,7 +1294,7 @@ class AssetController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
+            return response->json([
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
@@ -947,32 +1303,60 @@ class AssetController extends Controller
         try {
             DB::beginTransaction();
 
+            if ($asset->asset_status !== 'disponivel') {
+                throw new \Exception('Este ativo não está disponível para atribuição.');
+            }
+
             $asset->update([
                 'employee_id' => $request->employee_id,
                 'assignment_date' => now(),
                 'asset_status' => 'atribuido'
             ]);
 
+            AssetAssignment::create([
+                'asset_id' => $asset->id,
+                'employee_id' => $request->employee_id,
+                'assignment_date' => now(),
+                'status' => 'atribuido'
+            ]);
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Activo atribuído com sucesso!'
+                'message' => 'Ativo atribuído com sucesso!',
+                'data' => $asset->fresh(['employee.company'])
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao atribuir activo: ' . $e->getMessage()
+                'message' => 'Erro ao atribuir ativo: ' . $e->getMessage()
             ], 500);
         }
     }
 
+    /**
+     * Remove assignment from asset
+     */
     public function removeAssignment(Asset $asset)
     {
         try {
             DB::beginTransaction();
+
+            if ($asset->asset_status !== 'atribuido') {
+                throw new \Exception('Este ativo não está atribuído.');
+            }
+
+            // Fechar atribuição atual
+            $currentAssignment = $asset->assignments()->where('status', 'atribuido')->latest()->first();
+            if ($currentAssignment) {
+                $currentAssignment->update([
+                    'release_date' => now(),
+                    'status' => 'liberado'
+                ]);
+            }
 
             $asset->update([
                 'employee_id' => null,
@@ -996,10 +1380,13 @@ class AssetController extends Controller
         }
     }
 
+    /**
+     * Mark asset as inoperational
+     */
     public function markInoperational(HttpRequest $request, Asset $asset)
     {
         $validator = Validator::make($request->all(), [
-            'reason' => 'nullable|string|max:500'
+            'reason' => 'required|string|max:500'
         ]);
 
         if ($validator->fails()) {
@@ -1012,17 +1399,28 @@ class AssetController extends Controller
         try {
             DB::beginTransaction();
 
+            if (!in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao'])) {
+                throw new \Exception('Este ativo não pode ser marcado como inoperacional.');
+            }
+
             $asset->update([
-                'asset_status' => 'inoperacional',
-                'inoperational_reason' => $request->reason,
-                'inoperational_date' => now()
+                'asset_status' => 'inoperacional'
+            ]);
+
+            AssetMaintenance::create([
+                'asset_id' => $asset->id,
+                'maintenance_type' => 'corretiva',
+                'description' => $request->reason,
+                'status' => 'agendada',
+                'scheduled_date' => now(),
+                'notes' => 'Marcado como inoperacional'
             ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Activo marcado como inoperacional!'
+                'message' => 'Ativo marcado como inoperacional!'
             ]);
 
         } catch (\Exception $e) {
@@ -1034,10 +1432,13 @@ class AssetController extends Controller
         }
     }
 
+    /**
+     * Write off asset
+     */
     public function writeOff(HttpRequest $request, Asset $asset)
     {
         $validator = Validator::make($request->all(), [
-            'reason' => 'nullable|string|max:500'
+            'reason' => 'required|string|max:500'
         ]);
 
         if ($validator->fails()) {
@@ -1050,17 +1451,42 @@ class AssetController extends Controller
         try {
             DB::beginTransaction();
 
+            if (!in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao', 'inoperacional'])) {
+                throw new \Exception('Este ativo não pode ser abatido.');
+            }
+
+            // Se estiver atribuído, remover atribuição primeiro
+            if ($asset->asset_status === 'atribuido') {
+                $currentAssignment = $asset->assignments()->where('status', 'atribuido')->latest()->first();
+                if ($currentAssignment) {
+                    $currentAssignment->update([
+                        'release_date' => now(),
+                        'status' => 'liberado'
+                    ]);
+                }
+            }
+
             $asset->update([
                 'asset_status' => 'abatido',
-                'write_off_reason' => $request->reason,
-                'write_off_date' => now()
+                'employee_id' => null,
+                'assignment_date' => null
+            ]);
+
+            AssetMaintenance::create([
+                'asset_id' => $asset->id,
+                'maintenance_type' => 'corretiva',
+                'description' => 'Ativo abatido: ' . $request->reason,
+                'status' => 'concluida',
+                'completed_date' => now(),
+                'result' => 'cancelada',
+                'notes' => $request->reason
             ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Activo abatido com sucesso!'
+                'message' => 'Ativo abatido com sucesso!'
             ]);
 
         } catch (\Exception $e) {
@@ -1072,19 +1498,66 @@ class AssetController extends Controller
         }
     }
 
-    public function updateProcessStatus(HttpRequest $request, Asset $asset)
+    /**
+     * Mark asset for maintenance
+     */
+    public function markMaintenance(HttpRequest $request, Asset $asset)
     {
+        $validator = Validator::make($request->all(), [
+            'maintenance_type' => 'required|in:preventiva,corretiva,preditiva',
+            'description' => 'required|string|max:500',
+            'estimated_duration' => 'nullable|integer|min:1',
+            'maintenance_provider' => 'nullable|string|max:255'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
         try {
-            $asset->update([
-                'process_status' => $request->process_status
+            DB::beginTransaction();
+
+            if (!in_array($asset->asset_status, ['disponivel', 'atribuido', 'inoperacional'])) {
+                throw new \Exception('Este ativo não pode ser marcado para manutenção no estado atual.');
+            }
+
+            // Se estiver atribuído, remover atribuição temporariamente
+            $wasAssigned = $asset->asset_status === 'atribuido';
+            
+            // Garantir que estimated_duration é int ou null
+            $estimatedDuration = $request->filled('estimated_duration') && is_numeric($request->estimated_duration)
+                ? (int) $request->estimated_duration
+                : null;
+
+            $maintenance = AssetMaintenance::create([
+                'asset_id' => $asset->id,
+                'maintenance_type' => $request->maintenance_type,
+                'description' => $request->description,
+                'status' => 'agendada',
+                'scheduled_date' => now(),
+                'estimated_duration' => $estimatedDuration,
+                'maintenance_provider' => $request->maintenance_provider
             ]);
+
+            $asset->update([
+                'asset_status' => 'manutencao',
+                'last_maintenance' => now(),
+                'next_maintenance' => $estimatedDuration ? now()->addDays($estimatedDuration) : null
+            ]);
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Status do processo atualizado!'
+                'message' => 'Ativo marcado para manutenção!',
+                'data' => $maintenance
             ]);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erro: ' . $e->getMessage()
@@ -1092,12 +1565,126 @@ class AssetController extends Controller
         }
     }
 
+    /**
+     * Complete maintenance
+     */
+    public function completeMaintenance(HttpRequest $request, Asset $asset)
+    {
+        $validator = Validator::make($request->all(), [
+            'maintenance_id' => 'required|exists:asset_maintenances,id',
+            'actual_duration' => 'nullable|integer|min:1',
+            'cost' => 'nullable|numeric|min:0',
+            'technician_name' => 'nullable|string|max:255',
+            'result' => 'required|in:concluida,pendente,cancelada',
+            'notes' => 'nullable|string|max:1000'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $maintenance = AssetMaintenance::find($request->maintenance_id);
+            
+            if ($maintenance->asset_id !== $asset->id) {
+                throw new \Exception('Esta manutenção não pertence a este ativo.');
+            }
+
+            $maintenance->update([
+                'status' => 'concluida',
+                'completed_date' => now(),
+                'actual_duration' => $request->actual_duration,
+                'cost' => $request->cost,
+                'technician_name' => $request->technician_name,
+                'result' => $request->result,
+                'notes' => $request->notes
+            ]);
+
+            // Determinar novo status do ativo
+            $newStatus = 'disponivel';
+            
+            // Se estava atribuído antes da manutenção, podemos verificar no histórico
+            $lastAssignment = $asset->assignments()->where('status', 'liberado')->latest()->first();
+            if ($lastAssignment && $lastAssignment->release_date && $lastAssignment->release_date->gt(now()->subDays(30))) {
+                $newStatus = 'atribuido';
+            }
+
+            if ($request->result === 'pendente') {
+                $newStatus = 'inoperacional';
+            } elseif ($request->result === 'cancelada') {
+                $newStatus = $asset->employee_id ? 'atribuido' : 'disponivel';
+            }
+
+            $asset->update([
+                'asset_status' => $newStatus
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Manutenção concluída!',
+                'data' => [
+                    'asset' => $asset,
+                    'maintenance' => $maintenance
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get asset history (maintenances and assignments)
+     */
+    public function getHistory(Asset $asset)
+    {
+        try {
+            $asset->load([
+                'maintenances' => function($q) {
+                    $q->orderBy('created_at', 'desc');
+                },
+                'assignments' => function($q) {
+                    $q->with('employee')->orderBy('created_at', 'desc');
+                }
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'maintenances' => $asset->maintenances,
+                    'assignments' => $asset->assignments
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao carregar histórico: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk actions on multiple assets
+     */
     public function bulkAction(HttpRequest $request)
     {
         $validator = Validator::make($request->all(), [
-            'action' => 'required|in:assign,remove_assignment,inoperational,writeOff,delete',
+            'action' => 'required|in:assign,remove_assignment,mark_maintenance,inoperational,write_off,delete',
             'asset_ids' => 'required|array',
             'asset_ids.*' => 'exists:assets,id',
+            'employee_id' => 'required_if:action,assign|exists:employees,id'
         ]);
 
         if ($validator->fails()) {
@@ -1118,21 +1705,34 @@ class AssetController extends Controller
                 try {
                     switch ($request->action) {
                         case 'assign':
-                            if ($request->has('employee_id') && $asset->asset_status === 'disponivel') {
+                            if ($asset->asset_status === 'disponivel') {
                                 $asset->update([
                                     'employee_id' => $request->employee_id,
                                     'assignment_date' => now(),
                                     'asset_status' => 'atribuido'
                                 ]);
+                                AssetAssignment::create([
+                                    'asset_id' => $asset->id,
+                                    'employee_id' => $request->employee_id,
+                                    'assignment_date' => now(),
+                                    'status' => 'atribuido'
+                                ]);
                                 $results[$asset->id] = 'Atribuído com sucesso';
                                 $successCount++;
                             } else {
-                                $results[$asset->id] = 'Não disponível para atribuição';
+                                $results[$asset->id] = 'Não disponível para atribuição (status: ' . $asset->asset_status . ')';
                             }
                             break;
 
                         case 'remove_assignment':
                             if ($asset->asset_status === 'atribuido') {
+                                $currentAssignment = $asset->assignments()->where('status', 'atribuido')->latest()->first();
+                                if ($currentAssignment) {
+                                    $currentAssignment->update([
+                                        'release_date' => now(),
+                                        'status' => 'liberado'
+                                    ]);
+                                }
                                 $asset->update([
                                     'employee_id' => null,
                                     'assignment_date' => null,
@@ -1145,28 +1745,67 @@ class AssetController extends Controller
                             }
                             break;
 
-                        case 'inoperational':
-                            $asset->update([
-                                'asset_status' => 'inoperacional',
-                                'inoperational_date' => now()
-                            ]);
-                            $results[$asset->id] = 'Marcado como inoperacional';
-                            $successCount++;
+                        case 'mark_maintenance':
+                            if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'inoperacional'])) {
+                                AssetMaintenance::create([
+                                    'asset_id' => $asset->id,
+                                    'maintenance_type' => 'preventiva',
+                                    'description' => 'Manutenção em massa',
+                                    'status' => 'agendada',
+                                    'scheduled_date' => now()
+                                ]);
+                                $asset->update([
+                                    'asset_status' => 'manutencao',
+                                    'last_maintenance' => now()
+                                ]);
+                                $results[$asset->id] = 'Marcado para manutenção';
+                                $successCount++;
+                            } else {
+                                $results[$asset->id] = 'Não pode ser marcado para manutenção';
+                            }
                             break;
 
-                        case 'writeOff':
-                            $asset->update([
-                                'asset_status' => 'abatido',
-                                'write_off_date' => now()
-                            ]);
-                            $results[$asset->id] = 'Abatido com sucesso';
-                            $successCount++;
+                        case 'inoperational':
+                            if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao'])) {
+                                $asset->update(['asset_status' => 'inoperacional']);
+                                $results[$asset->id] = 'Marcado como inoperacional';
+                                $successCount++;
+                            } else {
+                                $results[$asset->id] = 'Não pode ser marcado como inoperacional';
+                            }
+                            break;
+
+                        case 'write_off':
+                            if (in_array($asset->asset_status, ['disponivel', 'atribuido', 'manutencao', 'inoperacional'])) {
+                                if ($asset->asset_status === 'atribuido') {
+                                    $currentAssignment = $asset->assignments()->where('status', 'atribuido')->latest()->first();
+                                    if ($currentAssignment) {
+                                        $currentAssignment->update([
+                                            'release_date' => now(),
+                                            'status' => 'liberado'
+                                        ]);
+                                    }
+                                }
+                                $asset->update([
+                                    'asset_status' => 'abatido',
+                                    'employee_id' => null,
+                                    'assignment_date' => null
+                                ]);
+                                $results[$asset->id] = 'Abatido com sucesso';
+                                $successCount++;
+                            } else {
+                                $results[$asset->id] = 'Não pode ser abatido';
+                            }
                             break;
 
                         case 'delete':
-                            $asset->delete();
-                            $results[$asset->id] = 'Eliminado';
-                            $successCount++;
+                            if ($asset->asset_status !== 'atribuido' && $asset->asset_status !== 'manutencao') {
+                                $asset->delete();
+                                $results[$asset->id] = 'Eliminado';
+                                $successCount++;
+                            } else {
+                                $results[$asset->id] = 'Não pode ser eliminado (está atribuído ou em manutenção)';
+                            }
                             break;
                     }
                 } catch (\Exception $e) {
@@ -1178,7 +1817,7 @@ class AssetController extends Controller
 
             return response()->json([
                 'success' => $successCount > 0,
-                'message' => "Operação realizada em {$successCount} activo(s)",
+                'message' => "Operação realizada em {$successCount} de " . $assets->count() . " ativo(s)",
                 'results' => $results,
                 'success_count' => $successCount
             ]);
@@ -1187,290 +1826,93 @@ class AssetController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erro: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function uploadDocuments(HttpRequest $request, Asset $asset)
-    {
-        $validator = Validator::make($request->all(), [
-            'documents' => 'required|array',
-            'documents.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx|max:10240',
-            'document_type' => 'nullable|in:manual,garantia,fatura,comprovativo,certificado,outro'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            $uploadedFiles = [];
-            $documentType = $request->document_type ?: 'outro';
-
-            foreach ($request->file('documents') as $file) {
-                $originalName = $file->getClientOriginalName();
-                $extension = $file->getClientOriginalExtension();
-                $filename = time() . '_' . Str::random(10) . '.' . $extension;
-                $path = $file->storeAs('assets/documents', $filename, 'public');
-
-                $document = AssetDocument::create([
-                    'asset_id' => $asset->id,
-                    'filename' => $filename,
-                    'original_name' => $originalName,
-                    'mime_type' => $file->getMimeType(),
-                    'size' => $file->getSize(),
-                    'path' => $path,
-                    'document_type' => $documentType,
-                ]);
-
-                $uploadedFiles[] = $document;
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Documentos carregados com sucesso!',
-                'data' => $uploadedFiles
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function downloadDocument(AssetDocument $document)
-    {
-        if (!Storage::disk('public')->exists($document->path)) {
-            abort(404, 'Ficheiro não encontrado.');
-        }
-
-        return Storage::disk('public')->download($document->path, $document->original_name);
-    }
-
-    public function removeDocument(AssetDocument $document)
-    {
-        try {
-            Storage::disk('public')->delete($document->path);
-            $document->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Documento removido com sucesso!'
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function listDocuments(Asset $asset)
-    {
-        $documents = $asset->documents()->get();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $documents
-        ]);
-    }
-
-    public function restore($id)
-    {
-        try {
-            $asset = Asset::withTrashed()->findOrFail($id);
-            $asset->restore();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Activo restaurado com sucesso!'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function forceDelete($id)
-    {
-        try {
-            $asset = Asset::withTrashed()->findOrFail($id);
-            
-            // Delete documents
-            foreach ($asset->documents as $document) {
-                Storage::disk('public')->delete($document->path);
-                $document->delete();
-            }
-            
-            $asset->forceDelete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Activo eliminado permanentemente!'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro: ' . $e->getMessage()
+                'message' => 'Erro na operação em massa: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
- * Marcar ativo para manutenção
- */
-public function markMaintenance(HttpRequest $request, Asset $asset)
-{
-    $validator = Validator::make($request->all(), [
-        'maintenance_type' => 'required|in:preventiva,corretiva,preditiva',
-        'maintenance_description' => 'required|string|max:500',
-        'estimated_duration' => 'nullable|integer|min:1',
-        'maintenance_provider' => 'nullable|string|max:255'
-    ], [
-        'maintenance_type.required' => 'O tipo de manutenção é obrigatório.',
-        'maintenance_description.required' => 'A descrição da manutenção é obrigatória.'
-    ]);
+     * Generate auto code for new asset
+     */
+    public function generateCode()
+    {
+        try {
+            $lastAsset = Asset::withTrashed()->orderBy('id', 'desc')->first();
+            
+            if (!$lastAsset) {
+                $code = 'AST-0001';
+            } else {
+                $lastCode = $lastAsset->code;
+                $number = intval(substr($lastCode, 4));
+                $newNumber = $number + 1;
+                $code = 'AST-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+            }
 
-    if ($validator->fails()) {
-        return response()->json([
-            'success' => false,
-            'errors' => $validator->errors()
-        ], 422);
+            return response()->json([
+                'success' => true,
+                'code' => $code
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao gerar código: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
-    try {
-        DB::beginTransaction();
+    /**
+     * Get form options for dropdowns
+     */
+    public function getFormOptions()
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'asset_statuses' => self::ASSET_STATUSES,
+                    'categories' => self::CATEGORIES,
+                    'suppliers' => Supplier::select('id', 'name')->get(),
+                    'invoices' => Invoice::select('id', 'number', 'date', 'status')->get(),
+                    'requests' => RequestModel::with('project')->select('id', 'code', 'type', 'process_status')->get(),
+                    'shipments' => Shipment::select('id', 'guide', 'date', 'status')->get(),
+                    'employees' => Employee::with('company')->select('id', 'name', 'company_id')->get(),
+                    'projects' => Project::select('id', 'name', 'code')->get()
+                ]
+            ]);
 
-        // Salvar histórico de manutenção
-        $maintenance = \App\Models\AssetMaintenance::create([
-            'asset_id' => $asset->id,
-            'maintenance_type' => $request->maintenance_type,
-            'description' => $request->maintenance_description,
-            'status' => 'agendada',
-            'scheduled_date' => now(),
-            'estimated_duration' => $request->estimated_duration,
-            'maintenance_provider' => $request->maintenance_provider,
-            'notes' => $request->notes
-        ]);
-
-        // Atualizar status do ativo
-        $asset->update([
-            'asset_status' => 'manutencao',
-            'last_maintenance' => now(),
-            'next_maintenance' => $request->estimated_duration ? 
-                now()->addDays((int) $request->estimated_duration) : null
-        ]);
-
-        DB::commit();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Activo marcado para manutenção!',
-            'data' => $maintenance
-        ]);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'Erro: ' . $e->getMessage()
-        ], 500);
-    }
-}
-
-/**
- * Concluir manutenção
- */
-public function completeMaintenance(HttpRequest $request, Asset $asset)
-{
-    $validator = Validator::make($request->all(), [
-        'maintenance_id' => 'required|exists:asset_maintenances,id',
-        'actual_duration' => 'nullable|integer|min:1',
-        'cost' => 'nullable|numeric|min:0',
-        'technician_name' => 'nullable|string|max:255',
-        'result' => 'required|in:concluida,pendente,cancelada',
-        'notes' => 'nullable|string|max:1000'
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'success' => false,
-            'errors' => $validator->errors()
-        ], 422);
-    }
-
-    try {
-        DB::beginTransaction();
-
-        // Atualizar registro de manutenção
-        $maintenance = \App\Models\AssetMaintenance::find($request->maintenance_id);
-        $maintenance->update([
-            'status' => 'concluida',
-            'completed_date' => now(),
-            'actual_duration' => $request->actual_duration,
-            'cost' => $request->cost,
-            'technician_name' => $request->technician_name,
-            'result' => $request->result,
-            'notes' => $request->notes
-        ]);
-
-        // Determinar novo status do ativo
-        $newStatus = 'disponivel'; // Padrão volta para disponível
-        if ($asset->employee_id) {
-            $newStatus = 'atribuido'; // Se tinha colaborador, volta para atribuído
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao carregar opções: ' . $e->getMessage()
+            ], 500);
         }
         
-        if ($request->result === 'pendente') {
-            $newStatus = 'inoperacional'; // Se manutenção pendente, fica inoperacional
-        }
+    }
 
-        // Atualizar ativo
-        $asset->update([
-            'asset_status' => $newStatus,
-            'last_maintenance' => now()
-        ]);
-
-        DB::commit();
-
+    /**
+ * Listar documentos do ativo
+ */
+public function listDocuments(Asset $asset)
+{
+    try {
+        $documents = $asset->documents()->orderBy('created_at', 'desc')->get();
+        
         return response()->json([
             'success' => true,
-            'message' => 'Manutenção concluída!',
-            'data' => [
-                'asset' => $asset,
-                'maintenance' => $maintenance
-            ]
+            'data' => $documents
         ]);
 
     } catch (\Exception $e) {
-        DB::rollBack();
+        \Log::error('Erro ao listar documentos: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString(),
+            'asset_id' => $asset->id
+        ]);
+        
         return response()->json([
             'success' => false,
-            'message' => 'Erro: ' . $e->getMessage()
+            'message' => 'Erro ao carregar documentos: ' . $e->getMessage()
         ], 500);
     }
-}
-
-/**
- * Listar manutenções do ativo
- */
-public function listMaintenances(Asset $asset)
-{
-    $maintenances = $asset->maintenances()
-        ->orderBy('created_at', 'desc')
-        ->get();
-
-    return response()->json([
-        'success' => true,
-        'data' => $maintenances
-    ]);
 }
 }

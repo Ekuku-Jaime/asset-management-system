@@ -39,7 +39,7 @@ class EmployeeController extends Controller
     public function data()
     {
         $employees = Employee::with('company')
-            ->select(['id', 'name', 'document', 'company_id', 'created_at', 'deleted_at']);
+            ->select(['id', 'name', 'document','department', 'company_id', 'created_at', 'deleted_at']);
         
         return DataTables::of($employees)
             ->addIndexColumn()
@@ -48,6 +48,9 @@ class EmployeeController extends Controller
             })
             ->addColumn('company_name', function($employee) {
                 return $employee->company->name ?? 'N/A';
+            })
+            ->addColumn('department', function($employee) {
+                return $employee->department ?? '';
             })
             ->editColumn('created_at', function($employee) {
                 return $employee->created_at->format('d/m/Y H:i');
@@ -80,6 +83,9 @@ class EmployeeController extends Controller
             ->addColumn('company_name', function($employee) {
                 return $employee->company->name ?? 'Empresa Eliminada';
             })
+            ->addColumn('department', function($employee) {
+                return $employee->department ?? '';
+            })
             ->editColumn('created_at', function($employee) {
                 return $employee->created_at->format('d/m/Y H:i');
             })
@@ -101,6 +107,7 @@ class EmployeeController extends Controller
             'name' => 'required|string|max:255',
             'document' => 'required|string|max:50|unique:employees,document',
             'company_id' => 'required|exists:companies,id',
+            'department' => 'nullable|string|max:255',
         ], [
             'name.required' => 'O nome do colaborador é obrigatório.',
             'document.required' => 'O documento é obrigatório.',
@@ -121,6 +128,7 @@ class EmployeeController extends Controller
                 'name' => $request->name,
                 'document' => $request->document,
                 'company_id' => $request->company_id,
+                'department' => $request->department,
             ]);
 
             return response()->json([
@@ -157,6 +165,7 @@ class EmployeeController extends Controller
             'name' => 'required|string|max:255',
             'document' => 'required|string|max:50|unique:employees,document,' . $employee->id,
             'company_id' => 'required|exists:companies,id',
+            'department' => 'nullable|string|max:255',
         ], [
             'name.required' => 'O nome do colaborador é obrigatório.',
             'document.required' => 'O documento é obrigatório.',
@@ -177,6 +186,7 @@ class EmployeeController extends Controller
                 'name' => $request->name,
                 'document' => $request->document,
                 'company_id' => $request->company_id,
+                'department' => $request->department,
             ]);
 
             return response()->json([

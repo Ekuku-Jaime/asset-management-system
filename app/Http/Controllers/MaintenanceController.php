@@ -6,6 +6,7 @@ use App\Models\AssetMaintenance;
 use App\Models\Asset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 
 class MaintenanceController extends Controller
@@ -53,7 +54,7 @@ class MaintenanceController extends Controller
             $query = AssetMaintenance::with([
                 'asset',
                 'asset.employee.company',
-                'asset.supplier'
+                'asset.request.supplier'
             ]);
 
             // Aplicar filtros
@@ -310,8 +311,8 @@ class MaintenanceController extends Controller
         $maintenance->load([
             'asset',
             'asset.employee.company',
-            'asset.supplier',
-            'asset.invoice',
+            'asset.request.supplier',
+            'asset.request.invoice',
             'asset.request'
         ]);
 
@@ -353,7 +354,7 @@ class MaintenanceController extends Controller
 
             // Se estiver iniciando, adiciona data de início
             if ($request->status === 'em_andamento') {
-                $updateData['started_date'] = now();
+                // $updateData['started_date'] = now();
             }
 
             $maintenance->update($updateData);
@@ -492,7 +493,7 @@ class MaintenanceController extends Controller
         $query = AssetMaintenance::with([
             'asset',
             'asset.employee.company',
-            'asset.supplier'
+            'asset.request.supplier'
         ]);
 
         // Aplicar filtros
@@ -574,7 +575,7 @@ class MaintenanceController extends Controller
                             if ($maintenance->status === 'agendada') {
                                 $maintenance->update([
                                     'status' => 'em_andamento',
-                                    'started_date' => now()
+                                    // 'started_date' => now()
                                 ]);
                                 $results[$maintenance->id] = 'Iniciada com sucesso';
                                 $successCount++;

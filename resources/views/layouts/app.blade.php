@@ -741,11 +741,11 @@
                             <i class="fas fa-box"></i>
                             <span>Activos</span>
                             @php
-                                $pendingAssets = \App\Models\Asset::where('process_status', 'incompleto')->count();
+                                // $pendingAssets = \App\Models\Asset::where('process_status', 'incompleto')->count();
                             @endphp
-                            @if($pendingAssets > 0)
+                            {{-- @if($pendingAssets > 0)
                                 <span class="sidebar-badge">{{ $pendingAssets }}</span>
-                            @endif
+                            @endif --}}
                         </a>
                     </div>
 
@@ -797,11 +797,11 @@
                             <i class="fas fa-tools"></i>
                             <span>Manutenções</span>
                             @php
-                                $pendingMaintenance = \App\Models\Asset::where('asset_status', 'manutencao')->count();
+                                // $pendingMaintenance = \App\Models\Asset::where('asset_status', 'manutencao')->count();
                             @endphp
-                            @if($pendingMaintenance > 0)
+                            {{-- @if($pendingMaintenance > 0)
                                 <span class="sidebar-badge">{{ $pendingMaintenance }}</span>
-                            @endif
+                            @endif --}}
                         </a>
                     </div>
 

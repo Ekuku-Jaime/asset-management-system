@@ -53,11 +53,56 @@ class Project extends Model
         return $this->hasManyThrough(
             Asset::class,
             Request::class,
-            'project_id',
-            'request_id',
-            'id',
-            'id'
+            'project_id', // Foreign key on requests table
+            'request_id',  // Foreign key on assets table
+            'id',          // Local key on projects table
+            'id'           // Local key on requests table
         );
+    }
+    
+    /**
+     * Get suppliers through requests
+     */
+    public function suppliers()
+    {
+        return $this->hasManyThrough(
+            Supplier::class,
+            Request::class,
+            'project_id',  // Foreign key on requests table
+            'id',           // Local key on suppliers table
+            'id',           // Local key on projects table
+            'supplier_id'   // Local key on requests table
+        )->distinct();
+    }
+    
+    /**
+     * Get invoices through requests
+     */
+    public function invoices()
+    {
+        return $this->hasManyThrough(
+            Invoice::class,
+            Request::class,
+            'project_id',  // Foreign key on requests table
+            'id',           // Local key on invoices table
+            'id',           // Local key on projects table
+            'invoice_id'    // Local key on requests table
+        )->distinct();
+    }
+    
+    /**
+     * Get shipments through requests
+     */
+    public function shipments()
+    {
+        return $this->hasManyThrough(
+            Shipment::class,
+            Request::class,
+            'project_id',   // Foreign key on requests table
+            'id',            // Local key on shipments table
+            'id',            // Local key on projects table
+            'shipment_id'    // Local key on requests table
+        )->distinct();
     }
 
     /**
@@ -120,6 +165,30 @@ class Project extends Model
     public function getRequestsCountAttribute()
     {
         return $this->requests()->count();
+    }
+    
+    /**
+     * Contagem de fornecedores do projeto
+     */
+    public function getSuppliersCountAttribute()
+    {
+        return $this->suppliers()->count();
+    }
+    
+    /**
+     * Contagem de faturas do projeto
+     */
+    public function getInvoicesCountAttribute()
+    {
+        return $this->invoices()->count();
+    }
+    
+    /**
+     * Contagem de remessas do projeto
+     */
+    public function getShipmentsCountAttribute()
+    {
+        return $this->shipments()->count();
     }
 
     /**

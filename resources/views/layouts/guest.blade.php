@@ -163,7 +163,7 @@
                         
                         <h2 class="page-title">
                             <i class="fas {{ $icon ?? 'fa-user-shield' }} me-2"></i>
-                            {{ $title ?? 'Ativação de Conta' }}
+                            {{ $title ?? 'Login na conta' }}
                         </h2>
                         <p class="page-subtitle">{{ $subtitle ?? 'Gestão Inteligente de Recursos' }}</p>
                     </div>

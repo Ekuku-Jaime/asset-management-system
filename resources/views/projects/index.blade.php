@@ -336,7 +336,7 @@ $(document).ready(function() {
                 }
             },
             pageLength: 25,
-            responsive: true,
+            // responsive: true,
             order: [[11, 'desc']],
            
             columns: [

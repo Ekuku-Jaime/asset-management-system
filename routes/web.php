@@ -192,6 +192,8 @@ Route::middleware(['auth'])->prefix('requests')->group(function () {
     Route::get('/statistics', [RequestController::class, 'statistics'])->name('requests.statistics');
     Route::get('/generate-code', [RequestController::class, 'generateCode'])->name('requests.generate-code');
     Route::get('/by-project/{projectId}', [RequestController::class, 'byProject'])->name('requests.by-project');
+    Route::post('/{request}/change-status', [RequestController::class, 'changeStatus'])->name('requests.change-status');
+    Route::get('/{request}/check-relationships', [RequestController::class, 'checkRelationshipsStatus'])->name('requests.check-relationships');
 });
 // Auth::routes();
 
@@ -221,6 +223,8 @@ Route::prefix('assets')->name('assets.')->group(function () {
     // Ações em massa
     Route::post('bulk-action', [AssetController::class, 'bulkAction'])->name('bulk-action');
     
+    //histórico 
+    Route::get('{asset}/history', [AssetController::class, 'getHistory'])->name('history');
     // Documentos
     Route::get('{asset}/documents', [AssetController::class, 'listDocuments'])->name('documents');
     Route::post('{asset}/documents', [AssetController::class, 'uploadDocuments'])->name('upload-documents');

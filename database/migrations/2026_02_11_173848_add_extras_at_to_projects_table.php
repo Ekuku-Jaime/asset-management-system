@@ -12,12 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('projects', function (Blueprint $table) {
-            $table->string('code')->unique()->after('id');
-            $table->text('description')->nullable()->after('name');
-            $table->date('start_date')->nullable()->after('description');
-            $table->date('end_date')->nullable()->after('start_date');
-            $table->enum('status', ['ativo', 'concluido', 'suspenso', 'cancelado'])->default('ativo')->after('end_date');
-            $table->decimal('total_value', 15, 2)->default(0)->after('status');
+            // $table->string('code')->unique()->after('id');
+            // $table->text('description')->nullable()->after('name');
+            // $table->date('start_date')->nullable()->after('description');
+            // $table->date('end_date')->nullable()->after('start_date');
+            // $table->enum('status', ['ativo', 'concluido', 'suspenso', 'cancelado'])->default('ativo')->after('end_date');
+            // $table->decimal('total_value', 15, 2)->default(0)->after('status');
            
         });
     }

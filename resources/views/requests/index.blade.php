@@ -44,7 +44,7 @@
                     
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label for="code" class="form-label">Código da Requisição *</label>
+                            <label for="code" class="form-label">Código da Requisição <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="code" name="code" required
                                        placeholder="Ex: REQ-000001">
@@ -57,7 +57,7 @@
                         </div>
                         
                         <div class="col-md-4 mb-3">
-                            <label for="date" class="form-label">Data da Requisição *</label>
+                            <label for="date" class="form-label">Data da Requisição <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" id="date" name="date" required
                                    max="{{ date('Y-m-d') }}">
                             <div class="invalid-feedback" id="date-error"></div>
@@ -65,7 +65,7 @@
                         </div>
                         
                         <div class="col-md-4 mb-3">
-                            <label for="type" class="form-label">Tipo de Requisição *</label>
+                            <label for="type" class="form-label">Tipo de Requisição <span class="text-danger">*</span></label>
                             <select class="form-select" id="type" name="type" required>
                                 <option value="">Selecione o tipo</option>
                                 <option value="internal">Interna</option>
@@ -78,8 +78,8 @@
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="project_id" class="form-label">Projeto (Opcional)</label>
-                            <select class="form-select" id="project_id" name="project_id">
+                            <label for="project_id" class="form-label">Projeto <span class="text-danger">*</span></label>
+                            <select class="form-select select2" id="project_id" name="project_id" required>
                                 <option value="">Selecione um projeto</option>
                                 @foreach($projects as $project)
                                     <option value="{{ $project->id }}">{{ $project->name }}</option>
@@ -97,8 +97,74 @@
                             <small class="text-muted">Descrição opcional da requisição (máx. 500 caracteres)</small>
                         </div>
                     </div>
+
+                    {{-- Todos os campos são obrigatórios independentemente do tipo --}}
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="supplier_id" class="form-label">
+                                <i class="fas fa-truck me-1"></i>Fornecedor <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select select2" id="supplier_id" name="supplier_id" required>
+                                <option value="">Selecione um fornecedor</option>
+                                @foreach($suppliers as $supplier)
+                                    <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="invalid-feedback" id="supplier_id-error"></div>
+                            <small class="text-muted">Fornecedor associado à requisição</small>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="invoice_id" class="form-label">
+                                <i class="fas fa-file-invoice me-1"></i>Fatura <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select select2" id="invoice_id" name="invoice_id" required>
+                                <option value="">Selecione uma fatura</option>
+                                @foreach($invoices as $invoice)
+                                    <option value="{{ $invoice->id }}" 
+                                            data-status="{{ $invoice->status }}"
+                                            data-incomplete-reason="{{ $invoice->incomplete_reason }}">
+                                        {{ $invoice->number }} ({{ $invoice->date }}) - 
+                                        {{ $invoice->status === 'completo' ? '✅ Completa' : '⚠️ Incompleta' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="invalid-feedback" id="invoice_id-error"></div>
+                            <small class="text-muted">Fatura associada à requisição</small>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="shipment_id" class="form-label">
+                                <i class="fas fa-shipping-fast me-1"></i>Remessa <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select select2" id="shipment_id" name="shipment_id" required>
+                                <option value="">Selecione uma remessa</option>
+                                @foreach($shipments as $shipment)
+                                    <option value="{{ $shipment->id }}" 
+                                            data-status="{{ $shipment->status }}"
+                                            data-incomplete-reason="{{ $shipment->incomplete_reason }}">
+                                        {{ $shipment->guide }} ({{ $shipment->date }}) - 
+                                        {{ $shipment->status === 'completo' ? '✅ Completa' : '⚠️ Incompleta' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="invalid-feedback" id="shipment_id-error"></div>
+                            <small class="text-muted">Remessa associada à requisição</small>
+                        </div>
+                    </div>
+
+                    {{-- Mensagens de aviso para faturas/remessas incompletas --}}
+                    <div id="invoiceWarning" class="alert alert-warning mt-2" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="invoiceWarningMessage"></span>
+                    </div>
+
+                    <div id="shipmentWarning" class="alert alert-warning mt-2" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="shipmentWarningMessage"></span>
+                    </div>
                     
-                    <div class="d-flex justify-content-end gap-2">
+                    <div class="d-flex justify-content-end gap-2 mt-3">
                         <button type="button" class="btn btn-secondary" id="cancelForm">
                             Cancelar
                         </button>
@@ -115,7 +181,7 @@
 
         <!-- Statistics Modal -->
         <div class="modal fade" id="statisticsModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
@@ -138,7 +204,7 @@
 
         <!-- Report Modal -->
         <div class="modal fade" id="reportModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
@@ -149,15 +215,15 @@
                     <div class="modal-body">
                         <form id="reportForm">
                             <div class="row mb-4">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="start_date" class="form-label">Data Inicial *</label>
                                     <input type="date" class="form-control" id="start_date" name="start_date" required>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="end_date" class="form-label">Data Final *</label>
                                     <input type="date" class="form-control" id="end_date" name="end_date" required>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="report_type" class="form-label">Tipo</label>
                                     <select class="form-select" id="report_type" name="type">
                                         <option value="">Todos</option>
@@ -165,16 +231,41 @@
                                         <option value="external">Externas</option>
                                     </select>
                                 </div>
+                                <div class="col-md-3">
+                                    <label for="report_process_status" class="form-label">Status</label>
+                                    <select class="form-select" id="report_process_status" name="process_status">
+                                        <option value="">Todos</option>
+                                        <option value="completo">Completo</option>
+                                        <option value="incompleto">Incompleto</option>
+                                    </select>
+                                </div>
                             </div>
                             
                             <div class="row mb-4">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label for="report_project_id" class="form-label">Projeto</label>
-                                    <select class="form-select" id="report_project_id" name="project_id">
+                                    <select class="form-select select2-modal" id="report_project_id" name="project_id">
                                         <option value="">Todos os projetos</option>
                                         @foreach($projects as $project)
                                             <option value="{{ $project->id }}">{{ $project->name }}</option>
                                         @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="report_supplier_id" class="form-label">Fornecedor</label>
+                                    <select class="form-select select2-modal" id="report_supplier_id" name="supplier_id">
+                                        <option value="">Todos os fornecedores</option>
+                                        @foreach($suppliers as $supplier)
+                                            <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="report_status" class="form-label">Status</label>
+                                    <select class="form-select" id="report_status" name="status">
+                                        <option value="">Todos</option>
+                                        <option value="completo">Completo</option>
+                                        <option value="incompleto">Incompleto</option>
                                     </select>
                                 </div>
                             </div>
@@ -196,13 +287,17 @@
                             <hr>
                             <h6 class="mb-3">Resultados do Relatório</h6>
                             <div class="table-responsive">
-                                <table class="table table-sm" id="reportTable">
-                                    <thead>
+                                <table class="table table-sm table-bordered" id="reportTable">
+                                    <thead class="table-light">
                                         <tr>
                                             <th>Código</th>
                                             <th>Data</th>
                                             <th>Tipo</th>
+                                            <th>Status</th>
                                             <th>Projeto</th>
+                                            <th>Fornecedor</th>
+                                            <th>Fatura</th>
+                                            <th>Remessa</th>
                                             <th>Descrição</th>
                                         </tr>
                                     </thead>
@@ -216,6 +311,63 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Status Modal -->
+        <div class="modal fade" id="changeStatusModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-toggle-on me-2"></i>Alterar Estado da Requisição
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="changeStatusForm">
+                        <div class="modal-body">
+                            <input type="hidden" id="change_request_id" name="request_id">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Requisição</label>
+                                <input type="text" class="form-control" id="change_request_code" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="change_process_status" class="form-label">Estado <span class="text-danger">*</span></label>
+                                <select class="form-select" id="change_process_status" name="process_status" required>
+                                    <option value="">Selecione o estado</option>
+                                    <option value="completo">Completo</option>
+                                    <option value="incompleto">Incompleto</option>
+                                </select>
+                                <div class="invalid-feedback" id="change_process_status-error"></div>
+                            </div>
+                            
+                            <div class="mb-3" id="incomplete_reason_container" style="display: none;">
+                                <label for="change_incomplete_reason" class="form-label">
+                                    Razão da Incompletude <span class="text-danger">*</span>
+                                </label>
+                                <textarea class="form-control" id="change_incomplete_reason" name="incomplete_reason" 
+                                          rows="3" placeholder="Indique a razão pela qual a requisição está incompleta..."></textarea>
+                                <div class="invalid-feedback" id="change_incomplete_reason-error"></div>
+                                <small class="text-muted">Máx. 500 caracteres</small>
+                            </div>
+                            
+                            <div id="relationshipStatus" class="mt-3" style="display: none;">
+                                <hr>
+                                <h6 class="mb-2">Status dos Relacionamentos</h6>
+                                <div id="relationshipIssues" class="small text-danger"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary" id="changeStatusBtn">
+                                <span>Guardar Alterações</span>
+                                <span class="spinner-border spinner-border-sm" id="changeStatusLoading" style="display: none;"></span>
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -236,6 +388,12 @@
                         </button>
                         <button type="button" class="btn btn-outline-warning" id="btnFilterExternal">
                             <i class="fas fa-external-link-alt me-1"></i> Externas
+                        </button>
+                        <button type="button" class="btn btn-outline-success" id="btnFilterComplete">
+                            <i class="fas fa-check-circle me-1"></i> Completas
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" id="btnFilterIncomplete">
+                            <i class="fas fa-exclamation-triangle me-1"></i> Incompletas
                         </button>
                         <div class="dropdown">
                             <button class="btn btn-outline-success dropdown-toggle" type="button" id="filterProjectDropdown" data-bs-toggle="dropdown">
@@ -270,8 +428,13 @@
                                 <th>Requisição</th>
                                 <th>Data</th>
                                 <th>Tipo</th>
+                                <th>Status</th>
                                 <th>Projeto</th>
+                                <th>Fornecedor</th>
+                                <th>Fatura</th>
+                                <th>Remessa</th>
                                 <th>Descrição</th>
+                                 <th>Motivo Incompleto</th>
                                 <th>Registada em</th>
                                 <th>Estado</th>
                                 <th class="text-end">Ações</th>
@@ -289,11 +452,13 @@
 @endsection
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
     .request-avatar {
         width: 40px;
         height: 40px;
-        background: linear-gradient(135deg, #06d6a0, #0ac294);
+        background: linear-gradient(135deg, #4361ee, #3a56d4);
         color: white;
         border-radius: 50%;
         display: flex;
@@ -304,7 +469,7 @@
     }
     
     .table-actions {
-        min-width: 180px;
+        min-width: 220px;
         white-space: nowrap;
     }
     
@@ -346,8 +511,18 @@
         color: #000;
     }
     
+    .status-badge-complete {
+        background: linear-gradient(135deg, #06d6a0, #05b386);
+        color: white;
+    }
+    
+    .status-badge-incomplete {
+        background: linear-gradient(135deg, #ef476f, #d64161);
+        color: white;
+    }
+    
     .description-truncate {
-        max-width: 200px;
+        max-width: 150px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -357,20 +532,145 @@
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
     }
+    
+    /* Select2 Customization */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 38px;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+        line-height: 36px;
+    }
+    
+    .select2-container--bootstrap-5 .select2-dropdown {
+        border-color: #dee2e6;
+    }
+    
+    .select2-container--bootstrap-5 .select2-results__option--selected {
+        background-color: #e9ecef;
+    }
+    
+    .select2-container--bootstrap-5 .select2-results__option--highlighted {
+        background-color: #4361ee;
+    }
+    
+    /* Warning badges for incomplete items */
+    .invoice-incomplete, .shipment-incomplete {
+        border-left: 3px solid #ef476f;
+    }
+    
+    .badge-icon {
+        width: 8px;
+        height: 8px;
+        display: inline-block;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .badge-icon.complete {
+        background-color: #06d6a0;
+    }
+    
+    .badge-icon.incomplete {
+        background-color: #ef476f;
+    }
+    
+    .filter-badge {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .filter-badge:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
 </style>
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
     let currentView = 'active';
     let currentFilter = 'all';
+    let currentStatusFilter = 'all';
     let currentProjectId = '';
     let table;
     const isAdmin = {{ auth()->user()->isAdmin() ? 'true' : 'false' }};
     
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'Selecione uma opção',
+        allowClear: true
+    });
+    
+    $('.select2-modal').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'Selecione uma opção',
+        allowClear: true,
+        dropdownParent: $('#reportModal')
+    });
+    
+    // Monitorar mudanças na fatura
+    $('#invoice_id').change(function() {
+        const selected = $(this).find('option:selected');
+        const status = selected.data('status');
+        const reason = selected.data('incomplete-reason');
+        
+        if (status === 'incompleto') {
+            $('#invoiceWarningMessage').html(`
+                <strong>Atenção:</strong> A fatura selecionada está incompleta. 
+                Razão: ${reason || 'Documentos pendentes'}
+            `);
+            $('#invoiceWarning').slideDown();
+        } else {
+            $('#invoiceWarning').slideUp();
+        }
+        
+        // Verificar status geral da requisição
+        checkOverallStatus();
+    });
+    
+    // Monitorar mudanças na remessa
+    $('#shipment_id').change(function() {
+        const selected = $(this).find('option:selected');
+        const status = selected.data('status');
+        const reason = selected.data('incomplete-reason');
+        
+        if (status === 'incompleto') {
+            $('#shipmentWarningMessage').html(`
+                <strong>Atenção:</strong> A remessa selecionada está incompleta. 
+                Razão: ${reason || 'Documentos pendentes'}
+            `);
+            $('#shipmentWarning').slideDown();
+        } else {
+            $('#shipmentWarning').slideUp();
+        }
+        
+        // Verificar status geral da requisição
+        checkOverallStatus();
+    });
+    
+    // Verificar status geral da requisição
+    function checkOverallStatus() {
+        const hasInvoice = $('#invoice_id').val();
+        const hasShipment = $('#shipment_id').val();
+        const invoiceStatus = $('#invoice_id').find('option:selected').data('status');
+        const shipmentStatus = $('#shipment_id').find('option:selected').data('status');
+        
+        if (hasInvoice && hasShipment && 
+            invoiceStatus === 'completo' && 
+            shipmentStatus === 'completo') {
+            // Todos os campos estão preenchidos e completos
+            console.log('Requisição pode ser completa');
+        }
+    }
+    
     // Initialize DataTable
-    function initializeTable(view = 'active', filter = 'all', projectId = '') {
+    function initializeTable(view = 'active', filter = 'all', statusFilter = 'all', projectId = '') {
         if ($.fn.DataTable.isDataTable('#requestsTable')) {
             table.destroy();
         }
@@ -387,27 +687,26 @@ $(document).ready(function() {
                 type: 'GET',
                 data: function(d) {
                     d.view = view;
-                    d.filter = filter;
+                    d.type = filter !== 'all' ? filter : '';
+                    d.process_status = statusFilter !== 'all' ? statusFilter : '';
                     d.project_id = projectId;
                 }
             },
-            responsive: true,
+            // responsive: true,
             order: [[0, 'desc']],
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-PT.json'
-            },
+            
             columns: [
                 { 
                     data: 'id',
                     className: 'fw-semibold',
-                    width: '5%'
+                    width: '3%'
                 },
                 { 
                     data: 'code',
                     render: function(data, type, row) {
                         const initial = data.charAt(0).toUpperCase();
                         return `<div class="d-flex align-items-center">
-                                    <div class="request-avatar me-3">
+                                    <div class="request-avatar me-2">
                                         ${initial}
                                     </div>
                                     <div>
@@ -456,19 +755,101 @@ $(document).ready(function() {
                     }
                 },
                 { 
+                    data: 'process_status',
+                    render: function(data, type, row) {
+                        if (data === 'Completo') {
+                            return `<span class="badge status-badge-complete" title="Requisição completa">
+                                        <i class="fas fa-check-circle me-1"></i>Completo
+                                    </span>`;
+                        } else {
+                            let title = row.incomplete_reason ? row.incomplete_reason : 'Requisição incompleta';
+                            return `<span class="badge status-badge-incomplete" title="${title}">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>Incompleto
+                                    </span>`;
+                        }
+                    }
+                },
+                { 
                     data: 'project_id',
                     render: function(data, type, row) {
                         if (row.project) {
-                            return `<span class="badge bg-info project-badge">${row.project.name}</span>`;
+                            if (row.project.deleted_at) {
+                                return `<span class="badge bg-danger" title="Projeto eliminado">
+                                            <i class="fas fa-trash me-1"></i>${row.project.name}
+                                        </span>`;
+                            } else {
+                                return `<span class="badge bg-info project-badge">${row.project.name}</span>`;
+                            }
                         } else {
-                            return '<span class="badge bg-secondary project-badge">Sem Projeto</span>';
+                            return '<span class="badge bg-secondary project-badge">-</span>';
+                        }
+                    }
+                },
+                { 
+                    data: 'supplier_id',
+                    render: function(data, type, row) {
+                        if (row.supplier) {
+                            if (row.supplier.deleted_at) {
+                                return `<span class="badge bg-danger" title="Fornecedor eliminado">
+                                            <i class="fas fa-trash me-1"></i>${row.supplier.name}
+                                        </span>`;
+                            } else {
+                                return `<span class="badge bg-success">${row.supplier.name}</span>`;
+                            }
+                        } else {
+                            return '<span class="badge bg-secondary">-</span>';
+                        }
+                    }
+                },
+                { 
+                    data: 'invoice_id',
+                    render: function(data, type, row) {
+                        if (row.invoice) {
+                            const status = row.invoice.status;
+                            const statusClass = status === 'completo' ? 'success' : 'warning';
+                            const title = status === 'completo' 
+                                ? 'Fatura completa' 
+                                : `Fatura incompleta: ${row.invoice.incomplete_reason || 'Documentos pendentes'}`;
+                            
+                            return `<span class="badge bg-${statusClass}" title="${title}">
+                                        <span class="badge-icon ${status}"></span>
+                                        ${row.invoice.number}
+                                    </span>`;
+                        } else {
+                            return '<span class="badge bg-secondary">-</span>';
+                        }
+                    }
+                },
+                { 
+                    data: 'shipment_id',
+                    render: function(data, type, row) {
+                        if (row.shipment) {
+                            const status = row.shipment.status;
+                            const statusClass = status === 'completo' ? 'success' : 'warning';
+                            const title = status === 'completo' 
+                                ? 'Remessa completa' 
+                                : `Remessa incompleta: ${row.shipment.incomplete_reason || 'Documentos pendentes'}`;
+                            
+                            return `<span class="badge bg-${statusClass}" title="${title}">
+                                        <span class="badge-icon ${status}"></span>
+                                        ${row.shipment.guide}
+                                    </span>`;
+                        } else {
+                            return '<span class="badge bg-secondary">-</span>';
                         }
                     }
                 },
                 { 
                     data: 'description',
                     render: function(data) {
-                        if (!data) return '<span class="text-muted">Sem descrição</span>';
+                        if (!data) return '<span class="text-muted">-</span>';
+                        return `<span class="description-truncate" title="${data}">${data}</span>`;
+                    }
+                },
+                 { 
+                    data: 'incomplete_reason',
+                    render: function(data) {
+                        if (!data) return '<span class="text-muted">-</span>';
                         return `<span class="description-truncate" title="${data}">${data}</span>`;
                     }
                 },
@@ -503,6 +884,7 @@ $(document).ready(function() {
                         let buttons = '<div class="btn-group btn-group-sm" role="group">';
                         
                         if (!row.deleted_at) {
+                            // Botão de editar (sempre visível)
                             buttons += `<button class="btn btn-outline-primary btn-edit"
                                           data-id="${data}"
                                           data-code="${row.code}"
@@ -510,10 +892,24 @@ $(document).ready(function() {
                                           data-type="${row.type}"
                                           data-description="${row.description || ''}"
                                           data-project-id="${row.project_id || ''}"
+                                          data-supplier-id="${row.supplier_id || ''}"
+                                          data-invoice-id="${row.invoice_id || ''}"
+                                          data-shipment-id="${row.shipment_id || ''}"
                                           title="Editar Requisição">
                                         <i class="fas fa-edit"></i>
                                     </button>`;
                             
+                            // Botão de alterar estado (sempre visível)
+                            buttons += `<button class="btn btn-outline-warning btn-change-status"
+                                          data-id="${data}"
+                                          data-code="${row.code}"
+                                          data-process-status="${row.process_status}"
+                                          data-incomplete-reason="${row.incomplete_reason || ''}"
+                                          title="Alterar Estado">
+                                        <i class="fas fa-toggle-on"></i>
+                                    </button>`;
+                            
+                            // Botão de eliminar (apenas admin)
                             if (isAdmin) {
                                 buttons += `<button class="btn btn-outline-danger btn-delete"
                                             data-id="${data}"
@@ -523,6 +919,7 @@ $(document).ready(function() {
                                     </button>`;
                             }
                         } else {
+                            // Botões para requisições eliminadas (apenas admin)
                             if (isAdmin) {
                                 buttons += `<button class="btn btn-outline-success btn-restore"
                                           data-id="${data}"
@@ -549,6 +946,17 @@ $(document).ready(function() {
             ],
             createdRow: function(row, data, dataIndex) {
                 $(row).attr('id', 'request-' + data.id);
+                
+                // Add class for incomplete status
+                if (data.process_status === 'incompleto') {
+                    $(row).addClass('table-warning');
+                }
+                
+                // Add class if invoice or shipment is incomplete
+                if ((data.invoice && data.invoice.status === 'incompleto') || 
+                    (data.shipment && data.shipment.status === 'incompleto')) {
+                    $(row).addClass('invoice-incomplete');
+                }
             },
             initComplete: function() {
                 $('#tableSearch').on('keyup', function() {
@@ -559,7 +967,7 @@ $(document).ready(function() {
     }
     
     // Initialize with active requests
-    initializeTable('active', 'all', '');
+    initializeTable('active', 'all', 'all', '');
     
     // Toggle form visibility
     $('#toggleForm').click(function() {
@@ -603,18 +1011,18 @@ $(document).ready(function() {
     $('#btnActive').click(function() {
         if (currentView !== 'active') {
             currentView = 'active';
-            $(this).addClass('active').removeClass('btn-outline-primary').addClass('btn-primary');
+            $(this).addClass('active btn-primary').removeClass('btn-outline-primary');
             $('#btnInactive').removeClass('active btn-primary').addClass('btn-outline-secondary');
-            initializeTable('active', currentFilter, currentProjectId);
+            initializeTable('active', currentFilter, currentStatusFilter, currentProjectId);
         }
     });
     
     $('#btnInactive').click(function() {
         if (currentView !== 'inactive') {
             currentView = 'inactive';
-            $(this).addClass('active').removeClass('btn-outline-secondary').addClass('btn-primary');
+            $(this).addClass('active btn-primary').removeClass('btn-outline-secondary');
             $('#btnActive').removeClass('active btn-primary').addClass('btn-outline-primary');
-            initializeTable('inactive', currentFilter, currentProjectId);
+            initializeTable('inactive', currentFilter, currentStatusFilter, currentProjectId);
         }
     });
     
@@ -622,27 +1030,49 @@ $(document).ready(function() {
     $('#btnFilterInternal').click(function() {
         if (currentFilter !== 'internal') {
             currentFilter = 'internal';
-            $(this).addClass('active').removeClass('btn-outline-info').addClass('btn-info text-white');
-            $('#btnFilterExternal').removeClass('active btn-warning').addClass('btn-outline-warning');
-            initializeTable(currentView, 'internal', currentProjectId);
+            $(this).addClass('active btn-info text-white').removeClass('btn-outline-info');
+            $('#btnFilterExternal').removeClass('active btn-warning text-dark').addClass('btn-outline-warning');
         } else {
             currentFilter = 'all';
             $(this).removeClass('active btn-info text-white').addClass('btn-outline-info');
-            initializeTable(currentView, 'all', currentProjectId);
         }
+        initializeTable(currentView, currentFilter, currentStatusFilter, currentProjectId);
     });
     
     $('#btnFilterExternal').click(function() {
         if (currentFilter !== 'external') {
             currentFilter = 'external';
-            $(this).addClass('active').removeClass('btn-outline-warning').addClass('btn-warning text-dark');
-            $('#btnFilterInternal').removeClass('active btn-info').addClass('btn-outline-info');
-            initializeTable(currentView, 'external', currentProjectId);
+            $(this).addClass('active btn-warning text-dark').removeClass('btn-outline-warning');
+            $('#btnFilterInternal').removeClass('active btn-info text-white').addClass('btn-outline-info');
         } else {
             currentFilter = 'all';
             $(this).removeClass('active btn-warning text-dark').addClass('btn-outline-warning');
-            initializeTable(currentView, 'all', currentProjectId);
         }
+        initializeTable(currentView, currentFilter, currentStatusFilter, currentProjectId);
+    });
+    
+    $('#btnFilterComplete').click(function() {
+        if (currentStatusFilter !== 'completo') {
+            currentStatusFilter = 'completo';
+            $(this).addClass('active btn-success text-white').removeClass('btn-outline-success');
+            $('#btnFilterIncomplete').removeClass('active btn-danger text-white').addClass('btn-outline-danger');
+        } else {
+            currentStatusFilter = 'all';
+            $(this).removeClass('active btn-success text-white').addClass('btn-outline-success');
+        }
+        initializeTable(currentView, currentFilter, currentStatusFilter, currentProjectId);
+    });
+    
+    $('#btnFilterIncomplete').click(function() {
+        if (currentStatusFilter !== 'incompleto') {
+            currentStatusFilter = 'incompleto';
+            $(this).addClass('active btn-danger text-white').removeClass('btn-outline-danger');
+            $('#btnFilterComplete').removeClass('active btn-success text-white').addClass('btn-outline-success');
+        } else {
+            currentStatusFilter = 'all';
+            $(this).removeClass('active btn-danger text-white').addClass('btn-outline-danger');
+        }
+        initializeTable(currentView, currentFilter, currentStatusFilter, currentProjectId);
     });
     
     // Project filter dropdown
@@ -659,7 +1089,7 @@ $(document).ready(function() {
             $('#filterProjectDropdown').html(`<i class="fas fa-project-diagram me-1"></i> Projeto`);
         }
         
-        initializeTable(currentView, currentFilter, projectId);
+        initializeTable(currentView, currentFilter, currentStatusFilter, projectId);
     });
     
     // Show statistics modal
@@ -704,33 +1134,33 @@ $(document).ready(function() {
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
-                                                <h6 class="card-title mb-0">Com Projeto</h6>
-                                                <h2 class="mb-0">${stats.with_project}</h2>
+                                                <h6 class="card-title mb-0">Completas</h6>
+                                                <h2 class="mb-0">${stats.complete}</h2>
                                             </div>
-                                            <i class="fas fa-project-diagram fa-2x opacity-50"></i>
+                                            <i class="fas fa-check-circle fa-2x opacity-50"></i>
                                         </div>
                                         <div class="mt-2 small">
-                                            ${stats.with_project_percentage}% do total
+                                            ${stats.complete_percentage}% do total
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-secondary text-white">
+                                <div class="card stat-card bg-warning text-dark">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
-                                                <h6 class="card-title mb-0">Sem Projeto</h6>
-                                                <h2 class="mb-0">${stats.without_project}</h2>
+                                                <h6 class="card-title mb-0">Incompletas</h6>
+                                                <h2 class="mb-0">${stats.incomplete}</h2>
                                             </div>
-                                            <i class="fas fa-times-circle fa-2x opacity-50"></i>
+                                            <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <div class="card stat-card bg-success text-white">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
@@ -746,7 +1176,7 @@ $(document).ready(function() {
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <div class="card stat-card bg-warning text-dark">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
@@ -762,16 +1192,37 @@ $(document).ready(function() {
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="card stat-card bg-danger text-white">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="card stat-card bg-info text-white">
                                     <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Hoje</h6>
-                                                <h2 class="mb-0">${stats.today}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar-day fa-2x opacity-50"></i>
-                                        </div>
+                                        <h6 class="card-title mb-0">Com Fornecedor</h6>
+                                        <h2 class="mb-0">${stats.with_supplier}</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card stat-card bg-warning text-dark">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-0">Sem Fornecedor</h6>
+                                        <h2 class="mb-0">${stats.without_supplier}</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card stat-card bg-info text-white">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-0">Com Fatura</h6>
+                                        <h2 class="mb-0">${stats.with_invoice}</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card stat-card bg-warning text-dark">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-0">Sem Fatura</h6>
+                                        <h2 class="mb-0">${stats.without_invoice}</h2>
                                     </div>
                                 </div>
                             </div>
@@ -780,52 +1231,32 @@ $(document).ready(function() {
                             <div class="col-md-3 mb-3">
                                 <div class="card stat-card bg-info text-white">
                                     <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Esta Semana</h6>
-                                                <h2 class="mb-0">${stats.this_week}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar-week fa-2x opacity-50"></i>
-                                        </div>
+                                        <h6 class="card-title mb-0">Com Remessa</h6>
+                                        <h2 class="mb-0">${stats.with_shipment}</h2>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="card stat-card bg-warning text-dark">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-0">Sem Remessa</h6>
+                                        <h2 class="mb-0">${stats.without_shipment}</h2>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3 mb-3">
                                 <div class="card stat-card bg-primary text-white">
                                     <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Este Mês</h6>
-                                                <h2 class="mb-0">${stats.this_month}</h2>
-                                            </div>
-                                            <i class="fas fa-calendar-alt fa-2x opacity-50"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <div class="card stat-card bg-dark text-white">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Últimos 7 Dias</h6>
-                                                <h2 class="mb-0">${stats.recent}</h2>
-                                            </div>
-                                            <i class="fas fa-clock fa-2x opacity-50"></i>
-                                        </div>
+                                        <h6 class="card-title mb-0">Hoje</h6>
+                                        <h2 class="mb-0">${stats.today}</h2>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3 mb-3">
                                 <div class="card stat-card bg-secondary text-white">
                                     <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="card-title mb-0">Mês Passado</h6>
-                                                <h2 class="mb-0">${stats.last_month}</h2>
-                                            </div>
-                                            <i class="fas fa-history fa-2x opacity-50"></i>
-                                        </div>
+                                        <h6 class="card-title mb-0">Eliminadas</h6>
+                                        <h2 class="mb-0">${stats.trashed}</h2>
                                     </div>
                                 </div>
                             </div>
@@ -864,12 +1295,11 @@ $(document).ready(function() {
         today.setHours(0, 0, 0, 0);
         
         if (selectedDate > today) {
-            $(this).addClass('future-date');
-            $(this).next('.invalid-feedback').text('A data não pode ser no futuro');
-            $(this).addClass('is-invalid');
+            $(this).addClass('is-invalid future-date');
+            $('#date-error').text('A data da requisição não pode ser no futuro');
         } else {
-            $(this).removeClass('future-date');
-            $(this).removeClass('is-invalid');
+            $(this).removeClass('is-invalid future-date');
+            $('#date-error').text('');
         }
     });
     
@@ -890,6 +1320,27 @@ $(document).ready(function() {
         if (selectedDate > today) {
             $('#date').addClass('is-invalid future-date');
             $('#date-error').text('A data da requisição não pode ser no futuro');
+            return;
+        }
+        
+        // Validate all required fields
+        let hasError = false;
+        const requiredFields = ['code', 'date', 'type', 'project_id', 'supplier_id', 'invoice_id', 'shipment_id'];
+        
+        requiredFields.forEach(field => {
+            const value = $(`#${field}`).val();
+            if (!value) {
+                $(`#${field}`).addClass('is-invalid');
+                $(`#${field}-error`).text('Este campo é obrigatório');
+                hasError = true;
+            }
+        });
+        
+        if (hasError) {
+            Toast.fire({
+                icon: 'error',
+                title: 'Por favor, preencha todos os campos obrigatórios'
+            });
             return;
         }
         
@@ -964,36 +1415,165 @@ $(document).ready(function() {
         const requestId = $(this).data('id');
         const requestCode = $(this).data('code');
         const requestDate = $(this).data('date');
-        const requestType = $(this).data('type');
+        let requestType = $(this).data('type');
         const requestDescription = $(this).data('description');
         const requestProjectId = $(this).data('project-id');
-        
+        const requestSupplierId = $(this).data('supplier-id');
+        const requestInvoiceId = $(this).data('invoice-id');
+        const requestShipmentId = $(this).data('shipment-id');
+
+        // Corrigir valor do tipo se vier traduzido
+        if (requestType === 'Interna') requestType = 'internal';
+        if (requestType === 'Externa') requestType = 'external';
+
         // Show form
         $('#requestFormCard').slideDown();
         $('#toggleForm').html('<i class="fas fa-times me-2"></i>Fechar Formulário');
-        
+
         // Set form title
         $('#formTitle').html(`<i class="fas fa-edit me-2"></i>Editar Requisição: ${requestCode}`);
-        
+
         // Format date for input field (YYYY-MM-DD)
         const dateObj = new Date(requestDate);
         const formattedDate = dateObj.toISOString().split('T')[0];
-        
+
         // Fill form data
         $('#request_id').val(requestId);
         $('#code').val(requestCode);
         $('#date').val(formattedDate);
         $('#type').val(requestType);
         $('#description').val(requestDescription);
-        $('#project_id').val(requestProjectId || '');
-        
+
+        // Helper to ensure select value exists
+        function ensureSelectValue(selector, value) {
+            if (value && $(selector).find(`option[value='${value}']`).length === 0) {
+                $(selector).append(`<option value='${value}'>${value} </option>`);
+            }
+            $(selector).val(value || '').trigger('change');
+        }
+        ensureSelectValue('#project_id', requestProjectId);
+        ensureSelectValue('#supplier_id', requestSupplierId);
+        ensureSelectValue('#invoice_id', requestInvoiceId);
+        ensureSelectValue('#shipment_id', requestShipmentId);
+
         // Validate date
         $('#date').trigger('change');
-        
+
         // Scroll to form
         $('html, body').animate({
             scrollTop: $('#requestFormCard').offset().top - 20
         }, 500);
+    });
+    
+    // Change Status Modal functionality
+    $('#change_process_status').change(function() {
+        if ($(this).val() === 'incompleto') {
+            $('#incomplete_reason_container').slideDown();
+            $('#change_incomplete_reason').prop('required', true);
+        } else {
+            $('#incomplete_reason_container').slideUp();
+            $('#change_incomplete_reason').prop('required', false);
+            $('#change_incomplete_reason').val('');
+        }
+    });
+    
+    // Open change status modal
+    $(document).on('click', '.btn-change-status', function() {
+        const requestId = $(this).data('id');
+        const requestCode = $(this).data('code');
+        const currentStatus = $(this).data('process-status');
+        const incompleteReason = $(this).data('incomplete-reason');
+        
+        $('#change_request_id').val(requestId);
+        $('#change_request_code').val(requestCode);
+        $('#change_process_status').val(currentStatus).trigger('change');
+        $('#change_incomplete_reason').val(incompleteReason);
+        
+        // Check relationship status
+        $.ajax({
+            url: `/requests/${requestId}/check-relationships`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.has_issues) {
+                    let issuesHtml = '<ul class="mb-0">';
+                    response.issues.forEach(function(issue) {
+                        issuesHtml += `<li><i class="fas fa-exclamation-triangle me-1"></i>${issue}</li>`;
+                    });
+                    issuesHtml += '</ul>';
+                    $('#relationshipIssues').html(issuesHtml);
+                    $('#relationshipStatus').show();
+                } else {
+                    $('#relationshipStatus').hide();
+                }
+            }
+        });
+        
+        $('#changeStatusModal').modal('show');
+    });
+    
+    // Submit change status form
+    $('#changeStatusForm').submit(function(e) {
+        e.preventDefault();
+        
+        const requestId = $('#change_request_id').val();
+        const submitBtn = $('#changeStatusBtn');
+        const loadingSpinner = $('#changeStatusLoading');
+        
+        // Validate incomplete reason when status is incomplete
+        if ($('#change_process_status').val() === 'incompleto' && !$('#change_incomplete_reason').val().trim()) {
+            $('#change_incomplete_reason').addClass('is-invalid');
+            $('#change_incomplete_reason-error').text('A razão da incompletude é obrigatória');
+            return;
+        }
+        
+        // Show loading
+        submitBtn.prop('disabled', true);
+        submitBtn.find('span:first').hide();
+        loadingSpinner.show();
+        
+        // Clear previous errors
+        $('.is-invalid').removeClass('is-invalid');
+        $('.invalid-feedback').text('');
+        
+        $.ajax({
+            url: `/requests/${requestId}/change-status`,
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                Toast.fire({
+                    icon: 'success',
+                    title: response.message
+                });
+                
+                $('#changeStatusModal').modal('hide');
+                table.ajax.reload();
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    const errors = xhr.responseJSON.errors;
+                    $.each(errors, function(key, value) {
+                        $(`#change_${key}`).addClass('is-invalid');
+                        $(`#change_${key}-error`).text(value[0]);
+                    });
+                } else if (xhr.status === 403) {
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.message || 'Permissão negada'
+                    });
+                } else {
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.message || 'Erro ao alterar estado'
+                    });
+                }
+            },
+            complete: function() {
+                // Hide loading
+                submitBtn.prop('disabled', false);
+                submitBtn.find('span:first').show();
+                loadingSpinner.hide();
+            }
+        });
     });
     
     // Delete request (soft delete) - only for admins
@@ -1087,7 +1667,8 @@ $(document).ready(function() {
                             icon: 'success',
                             title: response.message
                         });
-                        table.ajax.reload();
+                        // Switch to active view
+                        $('#btnActive').click();
                     },
                     error: function(xhr) {
                         if (xhr.status === 403) {
@@ -1218,17 +1799,41 @@ $(document).ready(function() {
                             ? '<span class="badge type-badge-internal">Interna</span>'
                             : '<span class="badge type-badge-external">Externa</span>';
                         
+                        let statusBadge = request.process_status === 'completo'
+                            ? '<span class="badge status-badge-complete">Completo</span>'
+                            : '<span class="badge status-badge-incomplete">Incompleto</span>';
+                        
                         let projectBadge = request.project 
                             ? `<span class="badge bg-info project-badge">${request.project.name}</span>`
-                            : '<span class="badge bg-secondary project-badge">Sem Projeto</span>';
+                            : '<span class="badge bg-secondary project-badge">-</span>';
+                        
+                        let supplierBadge = request.supplier 
+                            ? `<span class="badge bg-success">${request.supplier.name}</span>`
+                            : '<span class="badge bg-secondary">-</span>';
+                        
+                        let invoiceBadge = request.invoice 
+                            ? `<span class="badge bg-${request.invoice.status === 'completo' ? 'success' : 'warning'}">
+                                    ${request.invoice.number}
+                               </span>`
+                            : '<span class="badge bg-secondary">-</span>';
+                        
+                        let shipmentBadge = request.shipment 
+                            ? `<span class="badge bg-${request.shipment.status === 'completo' ? 'success' : 'warning'}">
+                                    ${request.shipment.guide}
+                               </span>`
+                            : '<span class="badge bg-secondary">-</span>';
                         
                         $('#reportTable tbody').append(`
                             <tr>
                                 <td><strong>${request.code}</strong></td>
                                 <td>${date.toLocaleDateString('pt-PT')}</td>
                                 <td>${typeBadge}</td>
+                                <td>${statusBadge}</td>
                                 <td>${projectBadge}</td>
-                                <td>${request.description || '-'}</td>
+                                <td>${supplierBadge}</td>
+                                <td>${invoiceBadge}</td>
+                                <td>${shipmentBadge}</td>
+                                <td class="description-truncate" title="${request.description || ''}">${request.description || '-'}</td>
                             </tr>
                         `);
                     });
@@ -1238,18 +1843,28 @@ $(document).ready(function() {
                     const endDate = new Date(response.period.end_date);
                     
                     $('#reportSummary').html(`
-                        <i class="fas fa-info-circle me-1"></i>
-                        Foram encontradas <strong>${response.count}</strong> requisições no período de 
-                        <strong>${startDate.toLocaleDateString('pt-PT')}</strong> a 
-                        <strong>${endDate.toLocaleDateString('pt-PT')}</strong>
-                        <br>
-                        <small class="mt-1">
-                            <i class="fas fa-building me-1"></i> Internas: ${response.stats.internal} | 
-                            <i class="fas fa-external-link-alt me-1"></i> Externas: ${response.stats.external}
-                            <br>
-                            <i class="fas fa-project-diagram me-1"></i> Com Projeto: ${response.stats.with_project} | 
-                            <i class="fas fa-times-circle me-1"></i> Sem Projeto: ${response.stats.without_project}
-                        </small>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-info-circle me-1"></i>
+                                Foram encontradas <strong>${response.count}</strong> requisições no período de 
+                                <strong>${startDate.toLocaleDateString('pt-PT')}</strong> a 
+                                <strong>${endDate.toLocaleDateString('pt-PT')}</strong>
+                                <br>
+                                <small class="mt-1">
+                                    <span class="badge type-badge-internal me-1">Internas: ${response.stats.internal}</span>
+                                    <span class="badge type-badge-external me-1">Externas: ${response.stats.external}</span>
+                                    <span class="badge status-badge-complete me-1">Completas: ${response.stats.complete}</span>
+                                    <span class="badge status-badge-incomplete">Incompletas: ${response.stats.incomplete}</span>
+                                </small>
+                            </div>
+                            <div>
+                                <small class="text-muted">
+                                    <i class="fas fa-truck me-1"></i> ${response.stats.with_supplier} fornecedores |
+                                    <i class="fas fa-file-invoice me-1"></i> ${response.stats.with_invoice} faturas |
+                                    <i class="fas fa-shipping-fast me-1"></i> ${response.stats.with_shipment} remessas
+                                </small>
+                            </div>
+                        </div>
                     `);
                     
                     $('#reportResults').show();
@@ -1285,14 +1900,23 @@ $(document).ready(function() {
         $('.is-invalid').removeClass('is-invalid');
         $('.invalid-feedback').text('');
         $('#date').removeClass('future-date');
+        $('#project_id, #supplier_id, #invoice_id, #shipment_id').val(null).trigger('change');
+        $('#invoiceWarning, #shipmentWarning').hide();
     }
     
     // Reset report
     function resetReport() {
         $('#reportForm')[0].reset();
+        $('#report_project_id, #report_supplier_id').val(null).trigger('change');
         $('#reportResults').hide();
         $('#reportTable tbody').empty();
     }
+    
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
 });
 </script>
 @endpush

@@ -12,15 +12,15 @@ class Asset extends Model
 
     protected $fillable = [
         'code', 'name', 'description', 'serial_number', 'brand', 'model',
-        'category', 'asset_status', 'process_status', 'incomplete_reason',
-        'total_value', 'base_value', 'iva_value',
-        'request_id', 'supplier_id', 'invoice_id', 'shipment_id',
-        'employee_id', 'location', 'department', 'warranty_expiry',
+        'category', 'asset_status', 'incomplete_reason',
+        'total_value', 'base_value', 'iva_value','life_date','economic_classifier',
+        'request_id',  // Agora aponta para Request que contém supplier/invoice/shipment
+        'employee_id',  'warranty_expiry',
         'last_maintenance', 'next_maintenance', 'assignment_date'
     ];
     
     protected $dates = [
-        'warranty_expiry', 'last_maintenance', 
+        'warranty_expiry', 'last_maintenance', 'life_date',
         'next_maintenance', 'assignment_date', 'deleted_at'
     ];
     
@@ -32,7 +32,7 @@ class Asset extends Model
     
     protected $attributes = [
         'asset_status' => 'disponivel',
-        'process_status' => 'incompleto',
+       
         'category' => 'hardware',
     ];
     
@@ -44,20 +44,7 @@ class Asset extends Model
         return $this->belongsTo(Request::class, 'request_id');
     }
     
-    public function supplier()
-    {
-        return $this->belongsTo(Supplier::class, 'supplier_id');
-    }
-    
-    public function shipment()
-    {
-        return $this->belongsTo(Shipment::class, 'shipment_id');
-    }
-    
-    public function invoice()
-    {
-        return $this->belongsTo(Invoice::class, 'invoice_id');
-    }
+    // Removidos: supplier, shipment, invoice (agora acessíveis via request)
     
     public function employee()
     {
@@ -86,6 +73,30 @@ class Asset extends Model
             'employee_id', // Local key on assets table
             'company_id' // Local key on employees table
         );
+    }
+    
+    /**
+     * Acessar fornecedor via request
+     */
+    public function getSupplierAttribute()
+    {
+        return $this->request ? $this->request->supplier : null;
+    }
+    
+    /**
+     * Acessar fatura via request
+     */
+    public function getInvoiceAttribute()
+    {
+        return $this->request ? $this->request->invoice : null;
+    }
+    
+    /**
+     * Acessar remessa via request
+     */
+    public function getShipmentAttribute()
+    {
+        return $this->request ? $this->request->shipment : null;
     }
     
     /**
@@ -122,11 +133,36 @@ class Asset extends Model
         // Calcular IVA automaticamente (16%)
         static::creating(function ($asset) {
             $asset->calculateIVA();
+            
+            if (empty($asset->code)) {
+                $asset->code = self::generateCode();
+            }
+            
+            
         });
         
         static::updating(function ($asset) {
             $asset->calculateIVA();
+           
         });
+    }
+    
+    /**
+     * Gerar código automático
+     */
+    public static function generateCode()
+    {
+        $lastAsset = self::withTrashed()->orderBy('id', 'desc')->first();
+        
+        if (!$lastAsset) {
+            return 'AST-0001';
+        }
+
+        $lastCode = $lastAsset->code;
+        $number = intval(substr($lastCode, 4));
+        $newNumber = $number + 1;
+        
+        return 'AST-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
     
     /**
@@ -145,6 +181,11 @@ class Asset extends Model
         
         return $this;
     }
+    
+    /**
+     * Atualizar status do processo
+     */
+   
     
     /**
      * Atribuir ativo a um employee
@@ -269,15 +310,7 @@ class Asset extends Model
         return $labels[$this->asset_status] ?? $this->asset_status;
     }
     
-    public function getProcessStatusLabelAttribute()
-    {
-        $labels = [
-            'completo' => 'Completo',
-            'incompleto' => 'Incompleto'
-        ];
-        
-        return $labels[$this->process_status] ?? $this->process_status;
-    }
+    
     
     public function getCategoryLabelAttribute()
     {
@@ -346,15 +379,7 @@ class Asset extends Model
         return $query->where('asset_status', 'abatido');
     }
     
-    public function scopeProcessComplete($query)
-    {
-        return $query->where('process_status', 'completo');
-    }
-    
-    public function scopeProcessIncomplete($query)
-    {
-        return $query->where('process_status', 'incompleto');
-    }
+   
     
     /**
      * Scope para pesquisa avançada
@@ -372,11 +397,11 @@ class Asset extends Model
               ->orWhereHas('request', function($q2) use ($searchTerm) {
                   $q2->where('code', 'like', "%{$searchTerm}%");
               })
-              ->orWhereHas('invoice', function($q2) use ($searchTerm) {
-                  $q2->where('number', 'like', "%{$searchTerm}%");
-              })
-              ->orWhereHas('supplier', function($q2) use ($searchTerm) {
+              ->orWhereHas('request.supplier', function($q2) use ($searchTerm) {
                   $q2->where('name', 'like', "%{$searchTerm}%");
+              })
+              ->orWhereHas('request.invoice', function($q2) use ($searchTerm) {
+                  $q2->where('number', 'like', "%{$searchTerm}%");
               })
               ->orWhereHas('employee', function($q2) use ($searchTerm) {
                   $q2->where('name', 'like', "%{$searchTerm}%");

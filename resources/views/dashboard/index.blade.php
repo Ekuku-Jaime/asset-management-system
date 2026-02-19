@@ -1193,6 +1193,81 @@
             </div>
         </div>
 
+        <!-- Cards de Vida Útil -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-hourglass-half me-2"></i>
+                    Vida Útil a Terminar (30 dias)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm" id="expiringLifeTable">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Ativo</th>
+                                <th>Projeto</th>
+                                <th>Data Fim</th>
+                                <th>Dias Restantes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expiringLifeBody">
+                            <!-- Dados via AJAX -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-hourglass-end me-2"></i>
+                    Vida Útil Expirada
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm" id="expiredLifeTable">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Ativo</th>
+                                <th>Projeto</th>
+                                <th>Data Fim</th>
+                                <th>Dias Expirados</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expiredLifeBody">
+                            <!-- Dados via AJAX -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Gráfico de Distribuição de Vida Útil -->
+<div class="col-xl-12 mb-4">
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3 class="chart-title">
+                <i class="fas fa-hourglass-half"></i>
+                Distribuição de Vida Útil
+            </h3>
+        </div>
+        <div class="chart-wrapper" style="height: 300px;">
+            <canvas id="lifeDistributionChart"></canvas>
+        </div>
+    </div>
+</div>
+
         <!-- Alertas Inteligentes -->
         <div class="alerts-section fade-in" style="animation-delay: 0.8s;">
             <div class="alerts-header">
@@ -1223,7 +1298,7 @@
 <script>
 // ===== CONFIGURAÇÃO GLOBAL =====
 const CONFIG = {
-    refreshInterval: 2 * 60 * 1000, // 2 minutos
+    refreshInterval: 20 * 60 * 1000, // minutos
     animationDuration: 300,
     currencySymbol: 'MT',
     dateFormat: 'dd/MM/yyyy',
@@ -1259,7 +1334,7 @@ $(document).ready(function() {
     loadAllDashboardData();
     
     // Configurar auto-refresh
-    startAutoRefresh();
+    // startAutoRefresh();
     
     // Configurar listeners de visibilidade
     setupVisibilityListener();
@@ -1386,6 +1461,9 @@ function loadStatistics() {
             success: function(response) {
                 if (response.success) {
                     updateStatistics(response.data);
+                   
+    updateLifeTables(response.data.expiring_life_date, response.data.expired_life_date);
+
                     resolve(response.data);
                 } else {
                     reject(new Error(response.message));
@@ -1482,6 +1560,8 @@ function updateKPIs(kpis) {
     $('#completionRate').text(formatNumber(kpis.project_completion_rate?.value || 0) + '%');
 }
 
+
+
 function updateStatistics(data) {
     console.log('📈 Atualizando estatísticas...');
     
@@ -1520,6 +1600,60 @@ function updateStatistics(data) {
     // Atualizar tabelas
     updateRecentAssetsTable(data.recent_assets || []);
     updateExpiringTable(data.expiring_warranty || []);
+
+}
+ // Atualizar tabelas de vida útil
+function updateLifeTables(expiringLifeData, expiredLifeData) {
+    // Tabela de vida útil a terminar
+    const expiringBody = $('#expiringLifeBody');
+    expiringBody.empty();
+   
+    if (expiringLifeData && expiringLifeData.length > 0) {
+        expiringLifeData.slice(0, 5).forEach(item => {
+            const daysClass = item.days_left <= 30 ? 'danger' : (item.days_left <= 90 ? 'warning' : 'info');
+            expiringBody.append(`
+                <tr>
+                    <td><span class="fw-bold">${item.code}</span></td>
+                    <td>${item.name}</td>
+                    <td>${item.project_name}</td>
+                    <td>${item.life_date}</td>
+                    <td>
+                        <span class="badge bg-${daysClass}">
+                            ${item.days_left} dias
+                        </span>
+                    </td>
+                </tr>
+            `);
+        });
+    } else {
+        expiringBody.html('<tr><td colspan="5" class="text-center text-muted">Nenhum ativo com vida útil a terminar</td></tr>');
+    }
+    
+    // Tabela de vida útil expirada
+    const expiredBody = $('#expiredLifeBody');
+    expiredBody.empty();
+    
+    if (expiredLifeData && expiredLifeData.length > 0) {
+        
+        
+        expiredLifeData.slice(0, 5).forEach(item => {
+            expiredBody.append(`
+                <tr>
+                    <td><span class="fw-bold">${item.code}</span></td>
+                    <td>${item.name}</td>
+                    <td>${item.project_name}</td>
+                    <td>${item.life_date}</td>
+                    <td>
+                        <span class="badge bg-danger">
+                            ${Math.abs(item.days_left)} dias
+                        </span>
+                    </td>
+                </tr>
+            `);
+        });
+    } else {
+        expiredBody.html('<tr><td colspan="5" class="text-center text-muted">Nenhum ativo com vida útil expirada</td></tr>');
+    }
 }
 
 function updateProjectsDisplay(topProjectsByValue, topProjectsByAssets) {
@@ -1887,7 +2021,7 @@ function updateAlerts(data) {
 
 function updateCharts(data) {
     console.log('📊 Atualizando gráficos...');
-    
+    createLifeDistributionChart(data.life_distribution || {});
     // Gráfico de Distribuição de Projetos
     if (projectStatusChart) {
         projectStatusChart.destroy();
@@ -2036,6 +2170,54 @@ function createProjectAssetsEvolutionChart(data) {
             animation: {
                 duration: 1000,
                 easing: 'easeOutQuart'
+            }
+        }
+    });
+}
+
+// Adicionar gráfico de distribuição de vida útil
+function createLifeDistributionChart(data) {
+    const ctx = document.getElementById('lifeDistributionChart');
+    if (!ctx) return;
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                data: Object.values(data),
+                backgroundColor: [
+                    '#ef4444', // Expirada - vermelho
+                    '#f59e0b', // A expirar 30 dias - laranja
+                    '#3b82f6', // A expirar 90 dias - azul
+                    '#10b981', // Válida - verde
+                    '#6b7280'  // Não definida - cinza
+                ],
+                borderWidth: 2,
+                borderColor: 'white'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        font: { size: 11 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.raw / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.raw} (${percentage}%)`;
+                        }
+                    }
+                }
             }
         }
     });

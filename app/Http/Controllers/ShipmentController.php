@@ -78,21 +78,19 @@ class ShipmentController extends Controller
                 return Carbon::parse($shipment->date);
             })
             ->editColumn('status', function($shipment) {
-                $badgeClass = $shipment->status == 'completo' ? 'bg-success' : 'bg-warning';
-                $icon = $shipment->status == 'completo' ? 'fa-check-circle' : 'fa-times-circle';
-                $text = $shipment->status == 'completo' ? 'Completo' : 'Incompleto';
+                // $badgeClass = $shipment->status == 'completo' ? 'bg-success' : 'bg-warning';
+                // $icon = $shipment->status == 'completo' ? 'fa-check-circle' : 'fa-times-circle';
+                $text = $shipment->status == 'completo' ? 'completo' : 'incompleto';
                 
-                return '<span class="badge ' . $badgeClass . '">
-                            <i class="fas ' . $icon . ' me-1"></i>' . $text . '
-                        </span>';
+                return $text ;
             })
             ->editColumn('created_at', function($shipment) {
                 return Carbon::parse($shipment->created_at);
             })
             ->editColumn('deleted_at', function($shipment) {
                 return $shipment->deleted_at ? 
-                    '<span class="badge bg-danger">Eliminada</span>' : 
-                    '<span class="badge bg-success">Ativa</span>';
+                    'Eliminada' : 
+                    'Ativa';
             })
             ->rawColumns(['actions', 'deleted_at', 'status'])
             ->make(true);

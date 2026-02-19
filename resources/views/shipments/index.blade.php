@@ -425,7 +425,7 @@ $(document).ready(function() {
                     data: 'deleted_at',
                     className: 'text-center',
                     render: function(data) {
-                        if (data) {
+                        if (!data) {
                             return `<span class="badge bg-danger">Eliminada</span>`;
                         } else {
                             return `<span class="badge bg-success">Ativa</span>`;

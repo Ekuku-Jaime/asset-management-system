@@ -89,7 +89,8 @@ class AssetMaintenance extends Model
     
     public function getFormattedCostAttribute()
     {
-        return $this->cost ? number_format($this->cost, 2, ',', '.') . ' MT' : null;
+        return $this->cost ? number_format($this->cost, 2, '
+        ,', '.') . ' MT' : null;
     }
     
     public function getIsOverdueAttribute()

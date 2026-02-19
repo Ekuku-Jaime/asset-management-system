@@ -20,6 +20,29 @@ class Shipment extends Model
     ];
     
     /**
+     * Relacionamento com Requests
+     */
+    public function requests()
+    {
+        return $this->hasMany(Request::class);
+    }
+    
+    /**
+     * Relacionamento com Assets através de Requests
+     */
+    public function assets()
+    {
+        return $this->hasManyThrough(
+            Asset::class,
+            Request::class,
+            'shipment_id', // Foreign key on requests table
+            'request_id',   // Foreign key on assets table
+            'id',           // Local key on shipments table
+            'id'            // Local key on requests table
+        );
+    }
+    
+    /**
      * Relacionamento com documentos
      */
     public function documents()
@@ -38,14 +61,49 @@ class Shipment extends Model
     /**
      * Atualizar status baseado em documentos
      */
-    public function updateStatus()
+     public function updateStatus()
     {
-        $this->status = $this->hasDocuments() ? 'completo' : 'incompleto';
-        $this->save();
+        $oldStatus = $this->status;
+        
+        if ($this->hasDocuments()) {
+            $this->status = 'completo';
+           
+        } else {
+            $this->status = 'incompleto';
+            
+        }
+        
+        // Se o status mudou, guardar e atualizar requisições relacionadas
+        if ($this->isDirty('status')) {
+            $this->saveQuietly(); // Evita loop
+            
+            // Atualizar todas as requisições relacionadas a esta remessa
+            $this->updateRelatedRequests();
+        } else {
+            $this->saveQuietly();
+        }
     }
+
+        /**
+     * Atualizar todas as requisições relacionadas a esta remessa
+     */
+    public function updateRelatedRequests()
+    {
+        foreach ($this->requests as $request) {
+            $request->updateProcessStatus();
+            $request->save();
+            
+            // Atualizar também os ativos relacionados a estas requisições
+            foreach ($request->assets as $asset) {
+                $asset->updateProcessStatus();
+                $asset->save();
+            }
+        }
+    }
+
     
     /**
-     * Validar que a data não é futura
+     * Boot do modelo
      */
     public static function boot()
     {
@@ -57,15 +115,24 @@ class Shipment extends Model
             }
         });
 
-        static::updating(function ($shipment) {
+         static::updating(function ($shipment) {
             if ($shipment->date > now()) {
                 throw new \Exception('A data da remessa não pode ser no futuro.');
             }
+            
+            if ($shipment->isDirty('status') && $shipment->status === 'completo') {
+                // $shipment->incomplete_reason = null;
+            }
         });
         
+        // Após atualizar, atualizar requisições relacionadas se o status mudou
+        static::updated(function ($shipment) {
+            if ($shipment->wasChanged('status')) {
+                $shipment->updateRelatedRequests();
+            }
+        });
         // Atualizar status automaticamente
         static::saved(function ($shipment) {
-            // Se o status não foi definido manualmente, atualiza com base em documentos
             if ($shipment->wasChanged() && !$shipment->wasChanged('status')) {
                 $shipment->updateStatus();
             }

@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\Auditable;
 
 class Company extends Model
 {
      use HasFactory;
-     use SoftDeletes;
+     use SoftDeletes, Auditable;
 
     protected $fillable = ['name','province','department'];
     protected $dates = ['deleted_at'];

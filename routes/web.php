@@ -14,6 +14,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\AuditController;
 
 // Dashboard Routes
 Route::prefix('dashboard')->group(function () {
@@ -24,6 +25,16 @@ Route::prefix('dashboard')->group(function () {
     Route::get('/financial', [DashboardController::class, 'getFinancialSummary'])->name('dashboard.financial');
     Route::get('/kpis', [DashboardController::class, 'getKPISummary'])->name('dashboard.kpis');
     Route::get('/timeline', [DashboardController::class, 'getProjectTimeline'])->name('dashboard.timeline');
+});
+
+// routes/web.php
+
+Route::middleware(['auth'])->prefix('audit')->group(function () {
+    Route::get('/', [AuditController::class, 'index'])->name('audit.index');
+    Route::get('/data', [AuditController::class, 'data'])->name('audit.data');
+    Route::get('/stats', [AuditController::class, 'stats'])->name('audit.stats');
+    Route::get('/export', [AuditController::class, 'export'])->name('audit.export');
+    Route::get('/{auditLog}', [AuditController::class, 'show'])->name('audit.show');
 });
 // Rota para o convite: quando o usuário clicar no link do email
 Route::get('/register/{token}', [RegisterController::class, 'showRegistrationForm'])->name('register');

@@ -17,36 +17,17 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Usuário admin ativo
-        // User::create([
-        //     'name' => 'Admin User',
-        //     'email' => 'admin@example.com',
-        //     'password' => bcrypt('password'),
-        //     'role' => 'admin',
-        //     'active' => true,
-        //     'email_verified_at' => now(),
-        // ]);
-
-        // Usuário convidado (inativo, sem senha, com token)
         User::create([
-            'name' => 'Invited User',
-            'email' => 'invited@example.com',
-            'password' => null,
-            'role' => 'user',
-            'active' => false,
-            'activation_token' => Str::random(60),
+            'name' => 'Admin User',
+            'email' => 'admin@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+            'active' => true,
+            'email_verified_at' => now(),
         ]);
 
+     
 
-        $provinces = [
-        'Maputo Cidade', 'Maputo Província', 'Gaza', 'Inhambane', 'Sofala',
-        'Manica', 'Tete', 'Zambézia', 'Nampula', 'Cabo Delgado', 'Niassa'
-    ];
-    
-    foreach ($provinces as $province) {
-        Company::create([
-            'name' => 'Empresa Exemplo ' . $province,
-            'province' => $province
-        ]);
-    }
+       
     }
 }

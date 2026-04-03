@@ -17,7 +17,7 @@ use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\AuditController;
 
 // Dashboard Routes
-Route::prefix('dashboard')->group(function () {
+Route::middleware(['auth','admin'])->prefix('dashboard')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/statistics', [DashboardController::class, 'getStatistics'])->name('dashboard.statistics');
     Route::get('/charts', [DashboardController::class, 'getChartsData'])->name('dashboard.charts');
@@ -29,7 +29,7 @@ Route::prefix('dashboard')->group(function () {
 
 // routes/web.php
 
-Route::middleware(['auth'])->prefix('audit')->group(function () {
+Route::middleware(['auth','admin'])->prefix('audit')->group(function () {
     Route::get('/', [AuditController::class, 'index'])->name('audit.index');
     Route::get('/data', [AuditController::class, 'data'])->name('audit.data');
     Route::get('/stats', [AuditController::class, 'stats'])->name('audit.stats');
@@ -45,12 +45,13 @@ Auth::routes(['register' => false]); // Desabilitamos o registro padrão
 
 // Rota protegida para o dashboard
 // Route::get('/dashboard', [App\Http\Controllers\HomeController::class, 'index'])->name('dashboard')->middleware('auth');
-Route::middleware(['auth'])->group(function () {
-  Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::get('/users/data', [UserController::class, 'data'])->name('users.data');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::post('/users/{user}/resend', [UserController::class, 'resend'])->name('users.resend');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');   
+Route::middleware(['auth', 'admin'])->group(function () {
+ Route::get('/users', [UserController::class, 'index'])->name('users.index');
+Route::get('/users/data', [UserController::class, 'data'])->name('users.data');
+Route::post('/users', [UserController::class, 'store'])->name('users.store');
+Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update'); // Adicione esta linha
+Route::post('/users/{user}/resend', [UserController::class, 'resend'])->name('users.resend');
+Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');  
 });
 
 

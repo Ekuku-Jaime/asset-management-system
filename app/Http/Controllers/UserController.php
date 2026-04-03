@@ -63,6 +63,56 @@ class UserController extends Controller
         }
     }
     
+    /**
+     * Update the specified user.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\User  $user
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'role' => 'required|in:admin,manager,user',
+        ]);
+        
+        try {
+            // Check if email is being changed
+            $emailChanged = $user->email !== $validated['email'];
+            
+            $user->update([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => $validated['role'],
+            ]);
+            
+            // If email changed and user is not active, resend invitation?
+            if ($emailChanged && !$user->active) {
+                $token = Str::random(60);
+                $user->update(['activation_token' => $token]);
+                Mail::to($user->email)->send(new SetPasswordMail($user, $token));
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'User updated successfully. A new invitation has been sent to the new email address.'
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'User updated successfully.'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
     public function resend(User $user)
     {
         try {

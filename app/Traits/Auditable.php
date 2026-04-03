@@ -24,9 +24,9 @@ trait Auditable
             $model->auditDelete();
         });
 
-        static::restored(function (Model $model) {
-            $model->auditRestore();
-        });
+        // static::restored(function (Model $model) {
+        //     $model->auditRestore();
+        // });
     }
 
     /**

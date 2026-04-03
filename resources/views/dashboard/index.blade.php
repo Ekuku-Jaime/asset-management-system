@@ -324,7 +324,7 @@
 
     .stat-title {
         font-size: 1rem;
-        font-weight: 600;
+        font-weight: 500;
         color: var(--gray);
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -342,7 +342,7 @@
     }
 
     .stat-main-value {
-        font-size: 2.5rem;
+        font-size: 1.5rem;
         font-weight: 700;
         line-height: 1;
         margin-bottom: 0.5rem;
@@ -998,7 +998,7 @@
                 <div class="stat-main-value" id="totalValue">0 MT</div>
                 <div class="stat-secondary">
                     <span><i class="fas fa-calendar-alt me-1"></i><span id="periodValue">0 MT</span> este mês</span>
-                    <span><i class="fas fa-chart-line me-1"></i><span id="valueGrowth">+15%</span></span>
+                    <span><i class="fas fa-chart-line me-1"></i><span id="valueGrowth">+*%</span></span>
                 </div>
             </div>
         </div>

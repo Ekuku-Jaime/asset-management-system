@@ -724,7 +724,8 @@
                 <!-- Sidebar Menu -->
                 <div class="sidebar-menu">
                     <!-- Dashboard -->
-                    <div class="sidebar-item">
+                     @if(auth()->user()->role === 'admin')
+                     <div class="sidebar-item">
                         <a href="{{ route('dashboard') }}"
                             class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"
                             data-bs-toggle="tooltip" title="Dashboard">
@@ -732,6 +733,7 @@
                             <span>Dashboard</span>
                         </a>
                     </div>
+                    @endif
 
                     <!-- Assets -->
                     <div class="sidebar-item">
@@ -786,11 +788,16 @@
                                 class="sidebar-dropdown-item {{ request()->routeIs('requests.*') ? 'active' : '' }}">
                                 <i class="fas fa-clipboard-list me-2"></i>Requisições
                             </a>
+
+                            <a href="{{ route('maintenances.index') }}"
+                                class="sidebar-dropdown-item {{ request()->routeIs('maintenances.*') ? 'active' : '' }}">
+                                <i class="fas fa-clipboard-list me-2"></i>Manutenções
+                            </a>
                         </div>
                     </div>
 
                     <!-- Manutenções -->
-                    <div class="sidebar-item">
+                    {{-- <div class="sidebar-item">
                         <a href="{{ route('maintenances.index') }}"
                             class="sidebar-link {{ request()->routeIs('maintenances.*') ? 'active' : '' }}"
                             data-bs-toggle="tooltip" title="Manutenções">
@@ -801,9 +808,9 @@
                             @endphp
                             {{-- @if($pendingMaintenance > 0)
                                 <span class="sidebar-badge">{{ $pendingMaintenance }}</span>
-                            @endif --}}
+                            @endif 
                         </a>
-                    </div>
+                    </div> --}}
 
                     <!-- Relatórios -->
                     {{-- <div class="sidebar-item">
@@ -816,6 +823,7 @@
                     </div> --}}
 
                     <!-- Utilizadores -->
+                     @if(auth()->user()->role === 'admin')
                     <div class="sidebar-item">
                         <a href="{{ route('users.index') }}"
                             class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}"
@@ -830,7 +838,20 @@
                             @endif
                         </a>
                     </div>
+@endif
+                  
+    @if(auth()->user()->role === 'admin')
+    <div class="sidebar-item">
+        <a href="{{ route('audit.index') }}"
+            class="sidebar-link {{ request()->routeIs('audit.*') ? 'active' : '' }}"
+            data-bs-toggle="tooltip" title="Logs">
+            <i class="fas fa-history"></i>
+            <span>Logs</span>
+        </a>
+    </div>
+    @endif
 
+                              
                     <!-- Configurações -->
                     {{-- <div class="sidebar-item">
                         <a href="#"
@@ -912,14 +933,14 @@
                                 <i class="fas fa-chevron-down"></i>
                             </button>
                             <div class="user-dropdown-menu" id="userDropdownMenu">
-                                <a href="#" class="user-dropdown-item">
+                                {{-- <a href="#" class="user-dropdown-item">
                                     <i class="fas fa-user me-2"></i>
                                     <span>Meu Perfil</span>
                                 </a>
                                 <a href="#" class="user-dropdown-item">
                                     <i class="fas fa-cog me-2"></i>
                                     <span>Configurações</span>
-                                </a>
+                                </a> --}}
                                 <div class="dropdown-divider my-2"></div>
                                 <a href="{{ route('logout') }}"
                                     onclick="event.preventDefault(); document.getElementById('logout-form').submit();"

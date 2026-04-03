@@ -22,32 +22,38 @@
     </div>
 </div>
 
-<!-- Create User Form Card -->
-<div class="row mb-4" id="createUserForm" style="display: none;">
+<!-- Create/Edit User Form Card -->
+<div class="row mb-4" id="userFormCard" style="display: none;">
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-light">
-                <h5 class="mb-0"><i class="fas fa-user-plus me-2"></i>Add New User</h5>
+                <h5 class="mb-0" id="formTitle">
+                    <i class="fas fa-user-plus me-2" id="formIcon"></i>
+                    <span id="formTitleText">Add New User</span>
+                </h5>
             </div>
             <div class="card-body">
                 <form id="userForm">
+                    <input type="hidden" id="userId" name="userId">
+                    <input type="hidden" id="formMethod" name="_method" value="POST">
+                    @csrf
+                    
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label for="name" class="form-label">Full Name *</label>
+                            <label for="name" class="form-label">Nome Completo *</label>
                             <input type="text" class="form-control" id="name" name="name" required>
                             <div class="invalid-feedback" id="name-error"></div>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="email" class="form-label">Email Address *</label>
+                            <label for="email" class="form-label">Email *</label>
                             <input type="email" class="form-control" id="email" name="email" required>
                             <div class="invalid-feedback" id="email-error"></div>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="role" class="form-label">Role *</label>
+                            <label for="role" class="form-label">Privilegio *</label>
                             <select class="form-select" id="role" name="role" required>
                                 <option value="">Select Role</option>
-                                <option value="user">User</option>
-                                <option value="manager">Manager</option>
+                                <option value="user">Usuario Normal</option>
                                 <option value="admin">Admin</option>
                             </select>
                             <div class="invalid-feedback" id="role-error"></div>
@@ -58,9 +64,9 @@
                             Cancel
                         </button>
                         <button type="submit" class="btn btn-primary" id="submitBtn">
-                            <span id="submitText">Create User</span>
+                            <span id="submitText">Criar Usuario</span>
                             <span id="loadingSpinner" style="display: none;">
-                                <i class="fas fa-spinner fa-spin"></i> Processing...
+                                <i class="fas fa-spinner fa-spin"></i> Processando...
                             </span>
                         </button>
                     </div>
@@ -101,9 +107,11 @@
 $(document).ready(function() {
     // Toggle create form
     $('#toggleForm').click(function() {
-        $('#createUserForm').slideToggle('fast', function() {
+        $('#userFormCard').slideToggle('fast', function() {
             if ($(this).is(':visible')) {
                 $('#toggleForm').html('<i class="fas fa-times me-2"></i>Close Form');
+                resetForm();
+                setFormMode('create');
             } else {
                 $('#toggleForm').html('<i class="fas fa-plus me-2"></i>Create New User');
                 resetForm();
@@ -112,9 +120,10 @@ $(document).ready(function() {
     });
     
     $('#cancelForm').click(function() {
-        $('#createUserForm').slideUp();
+        $('#userFormCard').slideUp();
         $('#toggleForm').html('<i class="fas fa-plus me-2"></i>Create New User');
         resetForm();
+        setFormMode('create');
     });
     
     // Initialize DataTable
@@ -202,6 +211,7 @@ $(document).ready(function() {
                                     <i class="fas fa-paper-plane"></i>
                                 </button>`;
                     }
+                 if (isAdmin) {
                     
                     buttons += `<button class="btn btn-sm btn-outline-primary btn-edit"
                                   data-id="${data}"
@@ -219,7 +229,7 @@ $(document).ready(function() {
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>`;
-                    
+                    }  
                     return buttons;
                 }
             }
@@ -235,13 +245,18 @@ $(document).ready(function() {
         }
     });
     
-    // Create user form submission
+    // Create/Update user form submission
     $('#userForm').submit(function(e) {
         e.preventDefault();
         
         const submitBtn = $('#submitBtn');
         const submitText = $('#submitText');
         const loadingSpinner = $('#loadingSpinner');
+        const userId = $('#userId').val();
+        const formMethod = $('#formMethod').val();
+        
+        // Determine URL based on whether we're editing or creating
+        const url = userId ? `/users/${userId}` : "{{ route('users.store') }}";
         
         // Show loading state
         submitBtn.prop('disabled', true);
@@ -253,9 +268,9 @@ $(document).ready(function() {
         $('.invalid-feedback').text('');
         
         $.ajax({
-            url: "{{ route('users.store') }}",
-            method: 'POST',
-            data: $(this).serialize(),
+            url: url,
+            method: 'POST', // Always use POST, but Laravel will interpret _method field
+            data: $(this).serialize(), // This will include _method and _token
             dataType: 'json',
             success: function(response) {
                 Toast.fire({
@@ -265,9 +280,10 @@ $(document).ready(function() {
                 
                 resetForm();
                 table.ajax.reload();
+                setFormMode('create');
                 
                 // Hide form after success
-                $('#createUserForm').slideUp();
+                $('#userFormCard').slideUp();
                 $('#toggleForm').html('<i class="fas fa-plus me-2"></i>Create New User');
             },
             error: function(xhr) {
@@ -318,6 +334,9 @@ $(document).ready(function() {
                 return $.ajax({
                     url: `/users/${userId}/resend`,
                     method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
                     dataType: 'json'
                 }).catch(error => {
                     Swal.showValidationMessage(
@@ -364,6 +383,9 @@ $(document).ready(function() {
                 $.ajax({
                     url: `/users/${userId}`,
                     method: 'DELETE',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
                     dataType: 'json',
                     success: function(response) {
                         Toast.fire({
@@ -383,15 +405,48 @@ $(document).ready(function() {
         });
     });
     
-    // Edit user (placeholder for now)
+    // Edit user - Now using the same form
     $(document).on('click', '.btn-edit', function() {
         const userId = $(this).data('id');
-        window.location.href = `/users/${userId}/edit`;
+        const userName = $(this).data('name');
+        const userEmail = $(this).data('email');
+        const userRole = $(this).data('role');
+        
+        // Fill the form with user data
+        $('#userId').val(userId);
+        $('#name').val(userName);
+        $('#email').val(userEmail);
+        $('#role').val(userRole);
+        
+        // Set method field to PUT for editing
+        $('#formMethod').val('PUT');
+        
+        // Show the form and set to edit mode
+        $('#userFormCard').slideDown();
+        $('#toggleForm').html('<i class="fas fa-times me-2"></i>Close Form');
+        setFormMode('edit');
     });
+    
+    // Set form mode (create or edit)
+    function setFormMode(mode) {
+        if (mode === 'edit') {
+            $('#formTitleText').text('Edit User');
+            $('#formIcon').removeClass('fa-user-plus').addClass('fa-edit');
+            $('#submitText').text('Update User');
+            $('#formMethod').val('PUT');
+        } else {
+            $('#formTitleText').text('Add New User');
+            $('#formIcon').removeClass('fa-edit').addClass('fa-user-plus');
+            $('#submitText').text('Create User');
+            $('#formMethod').val('POST');
+        }
+    }
     
     // Reset form
     function resetForm() {
         $('#userForm')[0].reset();
+        $('#userId').val('');
+        $('#formMethod').val('POST');
         $('.is-invalid').removeClass('is-invalid');
         $('.invalid-feedback').text('');
     }

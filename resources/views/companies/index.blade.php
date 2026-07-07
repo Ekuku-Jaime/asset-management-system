@@ -162,7 +162,7 @@
 $(document).ready(function() {
     let currentView = 'active';
     let table;
-    
+    window.userRole = '{{ auth()->user()->role ?? "guest" }}';
     // Function to get province badge class
     function getProvinceClass(province) {
         const classes = {
@@ -250,49 +250,59 @@ $(document).ready(function() {
                         }
                     }
                 },
-                { 
-                    data: 'id',
-                    orderable: false,
-                    searchable: false,
-                    className: 'text-end table-actions',
-                    render: function(data, type, row) {
-                        let buttons = '<div class="btn-group btn-group-sm" role="group">';
+             { 
+    data: 'id',
+    orderable: false,
+    searchable: false,
+    className: 'text-end table-actions',
+    render: function(data, type, row) {
+        let buttons = '<div class="btn-group btn-group-sm" role="group">';
+        
+        // Verificar se o usuário é admin
+        const isAdmin = window.userRole === 'admin';
+        
+        if (currentView === 'active') {
+            // Botão Edit - sempre visível
+            buttons += `<button class="btn btn-outline-primary btn-edit"
+                          data-id="${data}"
+                          data-name="${row.name}"
+                          data-province="${row.province}"
+                          title="Editar Empresa">
+                        <i class="fas fa-edit"></i>
+                    </button>`;
+            
+            // Botão Delete - apenas para admin
+            if (isAdmin) {
+                buttons += `<button class="btn btn-outline-danger btn-delete"
+                              data-id="${data}"
+                              data-name="${row.name}"
+                              title="Eliminar Empresa">
+                            <i class="fas fa-trash"></i>
+                        </button>`;
+            }
+        } else {
+            // Botões apenas para admin
+            if (isAdmin) {
+                buttons += `<button class="btn btn-outline-success btn-restore"
+                              data-id="${data}"
+                              data-name="${row.name}"
+                              title="Restaurar Empresa">
+                            <i class="fas fa-undo"></i>
+                        </button>
                         
-                        if (currentView === 'active') {
-                            buttons += `<button class="btn btn-outline-primary btn-edit"
-                                          data-id="${data}"
-                                          data-name="${row.name}"
-                                          data-province="${row.province}"
-                                          title="Editar Empresa">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    
-                                    <button class="btn btn-outline-danger btn-delete"
-                                            data-id="${data}"
-                                            data-name="${row.name}"
-                                            title="Eliminar Empresa">
-                                        <i class="fas fa-trash"></i>
-                                    </button>`;
-                        } else {
-                            buttons += `<button class="btn btn-outline-success btn-restore"
-                                          data-id="${data}"
-                                          data-name="${row.name}"
-                                          title="Restaurar Empresa">
-                                        <i class="fas fa-undo"></i>
-                                    </button>
-                                    
-                                    <button class="btn btn-outline-danger btn-force-delete"
-                                            data-id="${data}"
-                                            data-name="${row.name}"
-                                            title="Eliminar Permanentemente">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>`;
-                        }
-                        
-                        buttons += '</div>';
-                        return buttons;
-                    }
-                }
+                        <button class="btn btn-outline-danger btn-force-delete"
+                              data-id="${data}"
+                              data-name="${row.name}"
+                              title="Eliminar Permanentemente">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>`;
+            }
+        }
+        
+        buttons += '</div>';
+        return buttons;
+    }
+}
             ],
             initComplete: function() {
                 // Add search functionality

@@ -762,7 +762,7 @@
                         <div class="sidebar-dropdown-menu">
                             <a href="{{ route('companies.index') }}"
                                 class="sidebar-dropdown-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">
-                                <i class="fas fa-building me-2"></i>Empresas
+                                <i class="fas fa-building me-2"></i>Instituições
                             </a>
                             <a href="{{ route('employees.index') }}"
                                 class="sidebar-dropdown-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">

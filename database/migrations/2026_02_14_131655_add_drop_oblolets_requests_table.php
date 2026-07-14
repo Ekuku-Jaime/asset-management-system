@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::table('assets', function (Blueprint $table) {
             // Remover foreign keys primeiro
-            // $table->dropForeign(['supplier_id']);
-            // $table->dropForeign(['invoice_id']);
-            // $table->dropForeign(['shipment_id']);
-            // $table->dropForeign(['company_id']);
-            // $table->dropForeign(['project_id']);
+            $table->dropForeign(['supplier_id']);
+            $table->dropForeign(['invoice_id']);
+            $table->dropForeign(['shipment_id']);
+            $table->dropForeign(['company_id']);
+            $table->dropForeign(['project_id']);
             
             // Remover índices
             // $table->dropIndex(['supplier_id']);

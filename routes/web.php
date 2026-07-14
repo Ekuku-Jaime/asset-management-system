@@ -16,6 +16,14 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\AuditController;
 
+
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('assets.index');
+    }
+
+    return redirect()->route('login');
+});
 // Dashboard Routes
 Route::middleware(['auth','admin'])->prefix('dashboard')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -40,8 +48,6 @@ Route::middleware(['auth','admin'])->prefix('audit')->group(function () {
 Route::get('/register/{token}', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.complete');
 
-// Outras rotas de autenticação (login, logout, etc.)
-Auth::routes(['register' => false]); // Desabilitamos o registro padrão
 
 // Rota protegida para o dashboard
 // Route::get('/dashboard', [App\Http\Controllers\HomeController::class, 'index'])->name('dashboard')->middleware('auth');
@@ -52,6 +58,7 @@ Route::post('/users', [UserController::class, 'store'])->name('users.store');
 Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update'); // Adicione esta linha
 Route::post('/users/{user}/resend', [UserController::class, 'resend'])->name('users.resend');
 Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');  
+Route::post('/users/export', [UserController::class, 'export'])->name('users.export');
 });
 
 
@@ -67,6 +74,7 @@ Route::middleware(['auth'])->prefix('suppliers')->group(function () {
     Route::post('/{id}/restore', [SupplierController::class, 'restore'])->name('suppliers.restore');
     Route::delete('/{id}/force', [SupplierController::class, 'forceDelete'])->name('suppliers.force');
     Route::get('/search', [SupplierController::class, 'search'])->name('suppliers.search');
+    Route::post('/export', [SupplierController::class, 'export'])->name('suppliers.export');
 });
 
 // Projects Routes
@@ -80,6 +88,7 @@ Route::middleware(['auth'])->prefix('projects')->group(function () {
     
      // Search
     Route::get('/search', [ProjectController::class, 'search'])->name('projects.search');
+    Route::post('/export', [ProjectController::class, 'export'])->name('projects.export');
 // List views
     Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
     Route::get('/{project}', [ProjectController::class, 'show'])->name('projects.show');
@@ -114,6 +123,7 @@ Route::middleware(['auth'])->prefix('companies')->group(function () {
     Route::delete('/{id}/force', [CompanyController::class, 'forceDelete'])->name('companies.force');
     Route::get('/search', [CompanyController::class, 'search'])->name('companies.search');
     Route::get('/provinces', [CompanyController::class, 'provinces'])->name('companies.provinces');
+    Route::post('/export', [CompanyController::class, 'export'])->name('companies.export');
 });
 
 // Employees Routes
@@ -129,6 +139,7 @@ Route::middleware(['auth'])->prefix('employees')->group(function () {
     Route::delete('/{id}/force', [EmployeeController::class, 'forceDelete'])->name('employees.force');
     Route::get('/search', [EmployeeController::class, 'search'])->name('employees.search');
     Route::get('/by-company/{companyId}', [EmployeeController::class, 'byCompany'])->name('employees.by-company');
+    Route::post('/export', [EmployeeController::class, 'export'])->name('employees.export');
 });
 // Invoices Routes
 Route::middleware(['auth'])->prefix('invoices')->group(function () {
@@ -144,6 +155,7 @@ Route::middleware(['auth'])->prefix('invoices')->group(function () {
     Route::delete('/{id}/force', [InvoiceController::class, 'forceDelete'])->name('invoices.force');
     Route::get('/search', [InvoiceController::class, 'search'])->name('invoices.search');
     Route::post('/report', [InvoiceController::class, 'report'])->name('invoices.report');
+    Route::post('/export', [InvoiceController::class, 'export'])->name('invoices.export');
   
     // Rotas de documentos - CORRETAS
     Route::post('/{invoice}/documents', [InvoiceController::class, 'uploadDocuments'])
@@ -173,6 +185,7 @@ Route::middleware(['auth'])->prefix('shipments')->group(function () {
     Route::get('/search', [ShipmentController::class, 'search'])->name('shipments.search');
     Route::post('/report', [ShipmentController::class, 'report'])->name('shipments.report');
     Route::get('/statistics', [ShipmentController::class, 'statistics'])->name('shipments.statistics');
+    Route::post('/export', [ShipmentController::class, 'export'])->name('shipments.export');
     
     // Document routes
     Route::post('/{shipment}/documents', [ShipmentController::class, 'uploadDocuments'])
@@ -206,6 +219,7 @@ Route::middleware(['auth'])->prefix('requests')->group(function () {
     Route::get('/by-project/{projectId}', [RequestController::class, 'byProject'])->name('requests.by-project');
     Route::post('/{request}/change-status', [RequestController::class, 'changeStatus'])->name('requests.change-status');
     Route::get('/{request}/check-relationships', [RequestController::class, 'checkRelationshipsStatus'])->name('requests.check-relationships');
+    Route::post('/export', [RequestController::class, 'export'])->name('requests.export');
 });
 // Auth::routes();
 
@@ -220,9 +234,9 @@ Route::middleware(['auth'])->prefix('requests')->group(function () {
 
 
 // Rota principal
-Route::get('assets', [AssetController::class, 'index'])->name('assets.index');
+Route::middleware(['auth'])->get('assets', [AssetController::class, 'index'])->name('assets.index');
 
-Route::prefix('assets')->name('assets.')->group(function () {
+Route::middleware(['auth'])->prefix('assets')->name('assets.')->group(function () {
     // DataTables
     Route::get('datatable', [AssetController::class, 'datatable'])->name('datatable');
     
@@ -286,7 +300,7 @@ Route::get('/ativacao-sucesso', [ActivationController::class, 'success'])
 // Desativar o registro padrão do Laravel
 Auth::routes(['register' => false]);
 
-Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
+Route::middleware(['auth'])->get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
 // Manutenções Routes
 Route::middleware(['auth'])->prefix('maintenances')->group(function () {

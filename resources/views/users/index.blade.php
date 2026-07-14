@@ -118,6 +118,7 @@ $(document).ready(function() {
             }
         });
     });
+    const isAdmin = {{ auth()->user()->isAdmin() ? 'true' : 'false' }};
     
     $('#cancelForm').click(function() {
         $('#userFormCard').slideUp();
